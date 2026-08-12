@@ -1,0 +1,15 @@
+// Prisma schema for BNB Agent Studio Marketplace.
+//
+// NOTE (foundation phase): no models are defined yet, by design. The entity
+// model (users, wallets, sessions, deployments, performance snapshots, LP
+// pools, reports, etc.) is specified in /docs but intentionally not encoded
+// until the data layer milestone.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

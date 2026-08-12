@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/.git
+pnpm-lock.yaml
+coverage
+.env
+.env.*
+!.env.example
+/docs/final
+prisma/generated

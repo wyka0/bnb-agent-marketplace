@@ -1,0 +1,63 @@
+{
+  "name": "@bnb-marketplace/integrations",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./altana": {
+      "types": "./dist/altana/index.d.ts",
+      "default": "./dist/altana/index.js"
+    },
+    "./termix": {
+      "types": "./dist/termix/index.d.ts",
+      "default": "./dist/termix/index.js"
+    },
+    "./pancakeswap": {
+      "types": "./dist/pancakeswap/index.d.ts",
+      "default": "./dist/pancakeswap/index.js"
+    },
+    "./studio": {
+      "types": "./dist/studio/index.d.ts",
+      "default": "./dist/studio/index.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "altana:verify": "node dist/altana/verify.js",
+    "altana:erc8183:verify": "node dist/altana/erc8183.verify.js",
+    "altana:skills:verify": "node dist/altana/skills.verify.js",
+    "altana:x402:verify": "node dist/altana/x402.verify.js",
+    "altana:x402:testnet:verify": "node dist/altana/x402.testnet.verify.js",
+    "altana:x402:marketplace:verify": "node dist/altana/marketplace.verify.js",
+    "altana:p14:testnet:verify": "node dist/altana/p14.testnet.verify.js",
+    "altana:p14e:operator:verify": "node dist/altana/p14e.operator.provisioning.verify.js",
+    "altana:x16:verify": "node dist/altana/registration-preview.verify.js",
+    "altana:x402:review:verify": "node dist/altana/x402.review.verify.js",
+    "altana:x402:consent:verify": "node dist/altana/x402.consent.verify.js",
+    "altana:x402:e2e:testnet:verify": "node dist/altana/x402.e2e.testnet.verify.js",
+    "termix:reputation:verify": "node dist/termix/reputation.verify.js",
+    "pancakeswap:data:verify": "node dist/pancakeswap/data.verify.js"
+  },
+  "dependencies": {
+    "@altananetwork/sdk": "0.7.0",
+    "@altananetwork/x402-server": "^0.2.0",
+    "@bnb-marketplace/config": "workspace:*",
+    "@bnb-marketplace/telemetry": "workspace:*",
+    "ox": "^0.14.0",
+    "porto": "0.2.37",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "eslint": "^9.14.0",
+    "typescript": "^5.6.3"
+  }
+}

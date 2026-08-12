@@ -1,0 +1,131 @@
+/**
+ * 8004scan Public API — typed, server-only client.
+ *
+ * - Reuses the shared HTTP foundation (`@bnb-marketplace/data-api`).
+ * - Reads the API key ONLY from the server-side `8004SCAN_API_KEY` env var.
+ *   The key is NEVER referenced with a `NEXT_PUBLIC_` prefix, and this module is
+ *   only imported by server code (the route's server component), so it can never
+ *   be bundled into the browser.
+ * - Keyless-safe: with no key the client still works against the anonymous tier;
+ *   callers decide how to present the "no key configured" situation.
+ *
+ * This module performs NO network calls at import time. Requests only happen
+ * when a method is invoked at request time (never during `next build`).
+ */
+
+import { createApiClient } from "@bnb-marketplace/data-api";
+import type {
+  ListAgentsParams,
+  Scan8004Agent,
+  Scan8004Envelope,
+  Scan8004ListEnvelope,
+  Scan8004Meta,
+} from "./types";
+
+const DEFAULT_BASE_URL = "https://8004scan.io/api/v1/public";
+
+/** Normalized failure reason the UI can switch on (never leaks the key). */
+export type Scan8004FailureReason =
+  "unauthorized" | "rate-limited" | "not-found" | "bad-request" | "error";
+
+/** Result of a list call — discriminated so callers map to honest UI states. */
+export type Scan8004Result<T> =
+  | { ok: true; data: T[]; meta: Scan8004Meta }
+  | { ok: false; reason: Scan8004FailureReason; status?: number; message?: string };
+
+/** Read the server-only API key. Returns `undefined` when unset (keyless). */
+export function get8004ScanApiKey(): string | undefined {
+  // Bracket access because the documented env name begins with a digit.
+  const key = process.env["8004SCAN_API_KEY"];
+  return key && key.trim().length > 0 ? key : undefined;
+}
+
+/** Whether an API key is configured (used to decide the "unavailable" state). */
+export function has8004ScanApiKey(): boolean {
+  return get8004ScanApiKey() !== undefined;
+}
+
+function baseUrl(): string {
+  const fromEnv = process.env["EIGHT004SCAN_BASE_URL"];
+  return fromEnv && fromEnv.trim().length > 0 ? fromEnv : DEFAULT_BASE_URL;
+}
+
+function mapStatusToReason(status: number): Scan8004FailureReason {
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 429) return "rate-limited";
+  if (status === 404) return "not-found";
+  if (status === 400) return "bad-request";
+  return "error";
+}
+
+/** Build the query string from documented `GET /agents` params only. */
+function toQuery(params: ListAgentsParams): string {
+  const p = new URLSearchParams();
+  if (params.page != null) p.set("page", String(params.page));
+  if (params.limit != null) p.set("limit", String(params.limit));
+  if (params.chainId != null) p.set("chainId", String(params.chainId));
+  if (params.ownerAddress) p.set("ownerAddress", params.ownerAddress);
+  if (params.search) p.set("search", params.search);
+  if (params.protocol) p.set("protocol", params.protocol);
+  if (params.sortBy) p.set("sortBy", params.sortBy);
+  if (params.sortOrder) p.set("sortOrder", params.sortOrder);
+  if (params.isTestnet != null) p.set("isTestnet", String(params.isTestnet));
+  const s = p.toString();
+  return s ? `?${s}` : "";
+}
+
+function isListEnvelope(v: unknown): v is Scan8004ListEnvelope<Scan8004Agent> {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    (v as { success?: unknown }).success === true &&
+    Array.isArray((v as { data?: unknown }).data)
+  );
+}
+
+/**
+ * `GET /agents` — list ERC-8004 agents (paginated).
+ *
+ * Never throws for HTTP/network problems: returns a discriminated result so the
+ * page can render an honest state. `timeoutMs` guards against hanging requests.
+ */
+export async function listAgents(
+  params: ListAgentsParams = {},
+  options: { timeoutMs?: number; signal?: AbortSignal } = {}
+): Promise<Scan8004Result<Scan8004Agent>> {
+  const apiKey = get8004ScanApiKey();
+  const client = createApiClient({ baseUrl: baseUrl(), timeoutMs: options.timeoutMs ?? 8000 });
+
+  const headers: Record<string, string> = { Accept: "application/json" };
+  // Documented auth: optional `X-API-Key` header. Omitted entirely when unset.
+  if (apiKey) headers["X-API-Key"] = apiKey;
+
+  try {
+    // `forceLiterally` returns the raw JSON body so we can parse the 8004scan
+    // envelope ({success,data,meta}) ourselves instead of the data-api envelope.
+    const raw = await client.get<unknown>(`/agents${toQuery(params)}`, {
+      headers,
+      forceLiterally: true,
+      cache: "no-store",
+    });
+
+    const envelope = raw as Scan8004Envelope<Scan8004Agent>;
+    if (isListEnvelope(envelope)) {
+      return { ok: true, data: envelope.data, meta: envelope.meta ?? {} };
+    }
+    // success:false envelope (shape documented) — surface message, no key leak.
+    const message =
+      typeof envelope === "object" && envelope !== null && "error" in envelope
+        ? (envelope as { error?: { message?: string } }).error?.message
+        : undefined;
+    return { ok: false, reason: "error", message };
+  } catch (error) {
+    // `ApiClientError` carries a `status`; map to an honest reason.
+    const status = (error as { status?: number })?.status;
+    if (typeof status === "number") {
+      return { ok: false, reason: mapStatusToReason(status), status };
+    }
+    // Network failure / timeout / abort → offline-style error.
+    return { ok: false, reason: "error" };
+  }
+}

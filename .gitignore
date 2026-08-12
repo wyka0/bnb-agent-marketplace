@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.pnpm-virtual-store/
+
+# Builds
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+.turbo/
+
+# Env
+.env
+.env.*
+!.env.example
+.env*.local
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*.local
+
+# Prisma
+prisma/*.db
+
+# Misc
+next-env.d.ts
+*.tgz

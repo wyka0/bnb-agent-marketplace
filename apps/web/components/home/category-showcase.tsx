@@ -1,0 +1,55 @@
+import { Activity, ArrowLeftRight, LayoutGrid, TrendingUp } from "lucide-react";
+import { CategoryCard } from "./category-card";
+import { SectionTitle } from "./section-title";
+
+const CATEGORIES = [
+  {
+    title: "Rebalancing",
+    description:
+      "Agents that keep portfolio allocations aligned to target weights, adjusting positions as markets move to maintain strategy discipline.",
+    href: "/categories/rebalancing",
+    icon: <ArrowLeftRight className="h-5 w-5" aria-hidden="true" />,
+    category: "rebalancing" as const,
+  },
+  {
+    title: "Grid Trading",
+    description:
+      "Automated grid strategies that place buy and sell orders across a price range, capturing volatility in ranging markets.",
+    href: "/categories/grid-trading",
+    icon: <LayoutGrid className="h-5 w-5" aria-hidden="true" />,
+    category: "grid-trading" as const,
+  },
+  {
+    title: "Yield Optimization",
+    description:
+      "Agents that seek the best risk-adjusted yield across lending markets and liquidity pools, compounding returns automatically.",
+    href: "/categories/yield",
+    icon: <TrendingUp className="h-5 w-5" aria-hidden="true" />,
+    category: "yield" as const,
+  },
+  {
+    title: "Health Factor Monitoring",
+    description:
+      "Continuous surveillance of collateral health and liquidation distance, alerting and reacting before positions become at risk.",
+    href: "/categories/health-factor",
+    icon: <Activity className="h-5 w-5" aria-hidden="true" />,
+    category: "health-factor" as const,
+  },
+] as const;
+
+export function CategoryShowcase() {
+  return (
+    <section className="container py-20 lg:py-24">
+      <SectionTitle
+        eyebrow="Categories"
+        title="Four specialized tracks"
+        description="Every marketplace category gets equal emphasis — its own directory, dashboard, rankings, and metrics when live registry data arrives."
+      />
+      <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {CATEGORIES.map((category) => (
+          <CategoryCard key={category.title} {...category} />
+        ))}
+      </div>
+    </section>
+  );
+}

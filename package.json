@@ -1,0 +1,42 @@
+{
+  "name": "bnb-agent-marketplace",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prisma:generate": "pnpm --filter @bnb-marketplace/prisma exec prisma generate",
+    "prisma:migrate": "pnpm --filter @bnb-marketplace/prisma exec prisma migrate dev",
+    "check": "pnpm lint && pnpm typecheck && pnpm build",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.1.0",
+    "eslint": "^9.14.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3",
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.13.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "packageManager": "pnpm@9.15.9"
+}
