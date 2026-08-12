@@ -62,7 +62,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Prisma generate
-        run: pnpm --dir prisma prisma generate
+        run: pnpm --dir prisma exec prisma generate
       - name: Type check
         run: pnpm typecheck
 
@@ -81,7 +81,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Prisma generate
-        run: pnpm --dir prisma prisma generate
+        run: pnpm --dir prisma exec prisma generate
       - name: Build
         run: pnpm build
 
