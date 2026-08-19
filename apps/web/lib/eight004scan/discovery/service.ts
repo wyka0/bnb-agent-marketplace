@@ -244,3 +244,63 @@ export async function getBscCategoryDiscovery(
 
   return { ...assembleBscDiscovery(inputs), fetchedAt: new Date().toISOString() };
 }
+
+/* ------------------------------------------------------------------ *
+ * X.53 — single-category loader for the four Main Track category pages.
+ * ------------------------------------------------------------------ */
+
+/** One category's bucket plus the snapshot metadata the page must attribute. */
+export interface BscCategoryPageData {
+  state: BscDiscoveryState;
+  bucket: BscDiscoveryBucket | null;
+  lastIndexed: string | null;
+  fetchedAt: string | null;
+  source: "8004scan";
+}
+
+/**
+ * X.53: ONE bounded `GET /agents` request for a SINGLE category keyword.
+ *
+ * The four Main Track category pages each render exactly one category, so
+ * issuing all four keyword queries per page would be wasteful. This reuses
+ * the same officially supported server-side filters (`chainId=56`,
+ * `isTestnet=false`, `search=<keyword>`) and the SAME deterministic phrase
+ * classifier as the marketplace, so a category page and the marketplace can
+ * never disagree about what qualifies.
+ *
+ * Honesty rules are inherited unchanged: keyless-safe `missing-key` state,
+ * `matched ∈ retrieved ∈ hits`, evidence retained per match, and no
+ * fabricated rows or metrics.
+ */
+export async function getBscCategoryPage(
+  key: DiscoveryCategoryKey,
+  options: GetBscCategoryDiscoveryOptions = {}
+): Promise<BscCategoryPageData> {
+  const definition = DISCOVERY_CATEGORIES.find((candidate) => candidate.key === key);
+  if (!definition) {
+    return { state: "error", bucket: null, lastIndexed: null, fetchedAt: null, source: "8004scan" };
+  }
+  if (!has8004ScanApiKey()) {
+    return { state: "missing-key", bucket: null, lastIndexed: null, fetchedAt: null, source: "8004scan" };
+  }
+
+  const limit = Math.min(Math.max(options.maxPerCategory ?? 100, 1), 100);
+  const page = options.page ?? 1;
+  const result = await listAgents({
+    page,
+    limit,
+    chainId: BSC_DISCOVERY_CHAIN_ID,
+    isTestnet: false,
+    search: definition.searchKeyword,
+  });
+
+  const assembled = assembleBscDiscovery([{ key, result }]);
+  const bucket = assembled.buckets[0] ?? null;
+  return {
+    state: assembled.state,
+    bucket,
+    lastIndexed: assembled.lastIndexed,
+    fetchedAt: new Date().toISOString(),
+    source: "8004scan",
+  };
+}

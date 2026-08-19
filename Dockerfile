@@ -13,6 +13,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
+COPY prisma ./prisma
 
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
@@ -27,6 +28,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV TURBO_TELEMETRY_DISABLED=1
 
 COPY --from=deps /app ./
+
+# Generate the Prisma client explicitly: the dependency install runs with
+# --ignore-scripts, so the client is never produced by a postinstall hook.
+# Schema validation/generation needs no database connection.
+RUN pnpm --dir prisma exec prisma generate
 
 # Build workspace packages + web
 RUN pnpm turbo run build --filter=@bnb-marketplace/web

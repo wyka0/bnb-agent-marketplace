@@ -1,6 +1,8 @@
 import { Activity, ArrowLeftRight, LayoutGrid, TrendingUp } from "lucide-react";
 import { CategoryCard } from "./category-card";
 import { SectionTitle } from "./section-title";
+import { discoveryCategoryKeyFromLabel } from "@/lib/eight004scan/discovery/classifier";
+import type { BscDiscoveryData } from "@/lib/eight004scan/discovery/service";
 
 const CATEGORIES = [
   {
@@ -37,17 +39,30 @@ const CATEGORIES = [
   },
 ] as const;
 
-export function CategoryShowcase() {
+export function CategoryShowcase({ discovery }: { discovery: BscDiscoveryData }) {
+  /** Live matched count for a track — only when its BSC discovery bucket answered. */
+  const countFor = (title: string): number | null => {
+    if (discovery.state !== "ready") return null;
+    const key = discoveryCategoryKeyFromLabel(title);
+    const bucket = discovery.buckets.find((b) => b.key === key);
+    if (!bucket || (bucket.state !== "ready" && bucket.state !== "empty")) return null;
+    return bucket.matched;
+  };
+
   return (
     <section className="container py-20 lg:py-24">
       <SectionTitle
         eyebrow="Categories"
         title="Four specialized tracks"
-        description="Every marketplace category gets equal emphasis — its own directory, dashboard, rankings, and metrics when live registry data arrives."
+        description="Every marketplace category gets equal emphasis — its own directory, dashboard, rankings, and live BSC category discovery from the 8004scan registry."
       />
       <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {CATEGORIES.map((category) => (
-          <CategoryCard key={category.title} {...category} />
+          <CategoryCard
+            key={category.title}
+            {...category}
+            count={countFor(category.title)}
+          />
         ))}
       </div>
     </section>

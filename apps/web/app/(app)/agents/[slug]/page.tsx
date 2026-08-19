@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AgentDetailView } from "./agent-detail-view";
-import { titleFromSlug, isValidSlug, isAgentIdSlug } from "@/lib/agent-slug";
+import { titleFromSlug, isValidSlug, isAgentIdSlug, decodeSlugParam } from "@/lib/agent-slug";
 import { getMarketplaceAgentBySlug, type AgentLookupResult } from "@/lib/eight004scan/marketplace";
 import { getTermixReputationForAgent, type TermixReputationResult } from "@/lib/termix/reputation";
 import {
@@ -30,28 +30,40 @@ async function resolveAgent(slug: string): Promise<AgentLookupResult> {
 /**
  * Dynamic metadata. The title is the real agent name when the live registry
  * record resolves; otherwise a generic neutral title (never a guess).
+ *
+ * Malformed slugs and well-formed registry identities that do not exist are
+ * rejected here via `notFound()` — metadata runs BEFORE the response streams,
+ * so an unknown agent yields a true 404 (a page-level notFound() alone would
+ * stream 200 after the head is committed). Registry failures other than
+ * "not-found" stay honest pages.
  */
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
-  if (!isValidSlug(slug) && !isAgentIdSlug(slug)) {
-    return { title: { absolute: "Agent not found | Agent Studio Marketplace" } };
-  }
-  const agentResult = await resolveAgent(slug);
-  if (agentResult.ok) {
-    const agent = agentResult.agent;
+  const raw = (await params).slug;
+  const slug = decodeSlugParam(raw);
+  if (slug === null || (!isValidSlug(slug) && !isAgentIdSlug(slug))) notFound();
+  if (!isAgentIdSlug(slug)) {
     return {
-      title: { absolute: `${agent.name} | Agent Studio Marketplace` },
-      description:
-        agent.description ?? `Live agent record from the ERC-8004 registry (${agent.slug}).`,
+      title: { absolute: `${titleFromSlug(slug)} | Agent Studio Marketplace` },
+      description: `Agent details for ${titleFromSlug(slug)}.`,
     };
   }
+  const agentResult = await getMarketplaceAgentBySlug(slug);
+  if (!agentResult.ok && agentResult.reason === "not-found") notFound();
+  if (!agentResult.ok) {
+    return {
+      title: { absolute: `${titleFromSlug(slug)} | Agent Studio Marketplace` },
+      description: `Agent details for ${titleFromSlug(slug)}.`,
+    };
+  }
+  const agent = agentResult.agent;
   return {
-    title: { absolute: `${titleFromSlug(slug)} | Agent Studio Marketplace` },
-    description: `Agent details for ${titleFromSlug(slug)}.`,
+    title: { absolute: `${agent.name} | Agent Studio Marketplace` },
+    description:
+      agent.description ?? `Live agent record from the ERC-8004 registry (${agent.slug}).`,
   };
 }
 
@@ -109,8 +121,9 @@ export default async function AgentDetailPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { slug } = await params;
-  if (!isValidSlug(slug) && !isAgentIdSlug(slug)) notFound();
+  const raw = (await params).slug;
+  const slug = decodeSlugParam(raw);
+  if (slug === null || (!isValidSlug(slug) && !isAgentIdSlug(slug))) notFound();
   // Live agent + TermiX + PancakeSwap resolve independently server-side; a
   // failure in any one leaves an honest state and NEVER breaks the page.
   const [agentResult, termix, pancakeswap] = await Promise.all([
@@ -118,6 +131,9 @@ export default async function AgentDetailPage({
     resolveTermix(await searchParams),
     resolvePancakeSwap(),
   ]);
+  // A well-formed registry identity that does not exist is a genuine 404
+  // (matches the hire route; slug-only pages keep their neutral 200 state).
+  if (isAgentIdSlug(slug) && !agentResult.ok && agentResult.reason === "not-found") notFound();
   return (
     <AgentDetailView
       slug={slug}

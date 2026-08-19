@@ -12,6 +12,7 @@ const primaryItems = [
   { href: "/compare", label: "Compare" },
   { href: "/leaderboards", label: "Leaderboards" },
   { href: "/settings", label: "Settings" },
+  { href: "/permissions", label: "Permissions" },
   { href: "/profile", label: "Profile" },
 ];
 

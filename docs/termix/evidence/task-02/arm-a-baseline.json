@@ -1,0 +1,28 @@
+{
+  "arm": "A",
+  "elapsedMs": 4214,
+  "upstreamRequests": 4,
+  "monetaryCost": "NOT MEASURABLE",
+  "output": {
+    "rebalancing": {
+      "hits": 39,
+      "retrieved": 39,
+      "selected": 30
+    },
+    "grid-trading": {
+      "hits": 8,
+      "retrieved": 8,
+      "selected": 6
+    },
+    "yield-optimisation": {
+      "hits": 131,
+      "retrieved": 100,
+      "selected": 62
+    },
+    "health-factor-monitoring": {
+      "hits": 14,
+      "retrieved": 14,
+      "selected": 10
+    }
+  }
+}

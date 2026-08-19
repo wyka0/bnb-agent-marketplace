@@ -1,0 +1,13 @@
+{
+  "startedAt": "2026-08-16T02:10:12.695Z",
+  "finishedAt": "2026-08-16T02:10:28.083Z",
+  "node": "v24.14.1",
+  "harness": "apps/web/lib/termix/advantage-harness.ts",
+  "protocol": "docs/termix/EXPERIMENT-PROTOCOL.md",
+  "notes": [
+    "Timings are single-run wall clock on a warm network; they are not averaged.",
+    "upstreamRequests is the observed outbound HTTP call count (billable-unit proxy).",
+    "Monetary cost is NOT MEASURABLE: no published per-request price in this repo.",
+    "No blockchain transaction, no mainnet, no signing occurred."
+  ]
+}

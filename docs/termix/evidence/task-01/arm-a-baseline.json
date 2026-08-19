@@ -1,0 +1,20 @@
+{
+  "arm": "A",
+  "procedure": "direct registry query + naive substring screening",
+  "elapsedMs": 5513,
+  "upstreamRequests": 1,
+  "monetaryCost": "NOT MEASURABLE",
+  "output": {
+    "ok": true,
+    "hits": 131,
+    "retrieved": 100,
+    "selected": 62,
+    "sample": [
+      "Yield Compass (Agent Studio)",
+      "positioncrew-yield-optimizer.agent",
+      "BNB Yield Optimizer",
+      "prover.agent",
+      "defi_yield_optimizer.agent"
+    ]
+  }
+}

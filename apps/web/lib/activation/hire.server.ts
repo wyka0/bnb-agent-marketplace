@@ -136,8 +136,8 @@ export function findAgentByIdentity(
 }
 
 /** Fetch the agent list from the 8004scan public API (bounded, read-only). */
-export async function fetchAgentRows(): Promise<Scan8004Agent[]> {
-  const result = await listAgents({ limit: 100 });
+export async function fetchAgentRows(search?: string): Promise<Scan8004Agent[]> {
+  const result = await listAgents({ limit: 100, search });
   if (!result.ok) {
     throw new HireActivationError(
       `The 8004scan agent list is unavailable (reason: ${result.reason}).`

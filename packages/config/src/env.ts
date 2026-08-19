@@ -18,6 +18,27 @@ const envSchema = z.object({
     .string()
     .min(1)
     .default("postgresql://postgres:postgres@localhost:5432/marketplace"),
+  DIRECT_DATABASE_URL: z
+    .string()
+    .url()
+    .optional()
+    .describe("Direct PostgreSQL connection for Prisma migrations only."),
+  AUTH_CANONICAL_ORIGIN: z
+    .string()
+    .url()
+    .default("http://localhost:3000")
+    .describe("Server-authoritative origin used for SIWE domain and URI binding."),
+  AUTH_SESSION_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(900)
+    .max(2_592_000)
+    .default(604_800)
+    .describe("Opaque marketplace authentication session lifetime."),
+  RATE_LIMIT_BACKEND: z
+    .enum(["memory", "prisma", "redis"])
+    .default("memory")
+    .describe("Rate-limit backend. Use prisma after the X.49 migration is deployed; redis remains unprovisioned."),
   REDIS_URL: z.string().default("redis://localhost:6379"),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
   OTEL_SERVICE_NAME: z.string().default("bnbsm"),
@@ -53,6 +74,28 @@ const envSchema = z.object({
     .url()
     .optional()
     .describe("Override Altana public RPC per-environment (server-side)."),
+
+  /**
+   * X.44 KMS custody configuration. SERVER-ONLY — never prefix with
+   * NEXT_PUBLIC_. The AWS KMS key is customer-managed and provisioned
+   * out-of-band; application code only consumes the key identifier.
+   * All three variables are optional so builds/CI without KMS still pass;
+   * the custody factory fails closed when AWS config is missing.
+   */
+  AWS_REGION: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("AWS region hosting the customer-managed KMS custody key (server-only)."),
+  ALTANA_KMS_KEY_ID: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Customer-managed AWS KMS key id/alias/ARN for Altana signer custody (server-only)."),
+  ALTANA_KMS_PROVIDER: z
+    .enum(["aws", "test"])
+    .default("aws")
+    .describe("KMS provider. 'test' is a test-only in-memory adapter, rejected in production (server-only)."),
 });
 
 /**

@@ -199,7 +199,7 @@ console.log("marketplace verify: card mapping (toAgentCardData)");
     card.protocols.length === 2 && card.protocols[0].label === "A2A"
   );
   check("registryStatus live", card.registryStatus === "live");
-  check("hireable always false (activation not implemented)", card.hireable === false);
+  check("real registry row is unavailable without a verified actionable capability", card.hireable === false);
   check(
     "reputation score/reviews mapped",
     card.reputation?.score === 4.6 && card.reputation?.reviews === 42

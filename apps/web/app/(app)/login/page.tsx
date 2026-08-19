@@ -1,12 +1,6 @@
 import { Breadcrumbs } from "@/components/breadcrumbs";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Input,
-} from "@bnb-marketplace/ui";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@bnb-marketplace/ui";
+import { AuthControls } from "@/components/auth-controls";
 
 export default function LoginPage() {
   return (
@@ -17,12 +11,11 @@ export default function LoginPage() {
           <CardHeader>
             <CardTitle>Connect your wallet</CardTitle>
             <CardDescription>
-              Wallet authentication is implemented in the auth phase. For now this is a placeholder
-              route.
+              Sign one SIWE message to authenticate this wallet on BNB Testnet.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Input disabled placeholder="Wallet connect coming soon" aria-label="Wallet connect" />
+            <AuthControls />
           </CardContent>
         </Card>
       </div>

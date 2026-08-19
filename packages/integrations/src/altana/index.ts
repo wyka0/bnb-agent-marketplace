@@ -97,3 +97,5 @@ export * from "./x402.js";
 export * from "./x402.review.js";
 export * from "./marketplace.js";
 export * from "./registration-preview.js";
+export * from "./session.js";
+export * from "./session.x36.public.js";

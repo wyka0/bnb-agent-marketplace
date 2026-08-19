@@ -1,15 +1,251 @@
-// Prisma schema for BNB Agent Studio Marketplace.
-//
-// NOTE (foundation phase): no models are defined yet, by design. The entity
-// model (users, wallets, sessions, deployments, performance snapshots, LP
-// pools, reports, etc.) is specified in /docs but intentionally not encoded
-// until the data layer milestone.
-
 generator client {
   provider = "prisma-client-js"
+  // X.55: emit the client + query engine INSIDE this workspace package.
+  // Default generation lands in the pnpm virtual store, which Next.js build
+  // tracing does not copy into `.next/server` / standalone output, producing a
+  // runtime `PrismaClientInitializationError` (engine not found). Emitting here
+  // keeps the engine on a traceable path. This changes only the artifact
+  // location �?" the client stays server-only and no security boundary moves.
+  // X.61: Vercel builds on Debian but runs lambdas on Amazon Linux (rhel), so
+  // the query engine must be emitted for BOTH flavors plus the local one.
+  // X.61b: reverted from engineType=wasm — the wasm glue resolves its engine
+  // relative to the bundled chunk dir, which the Vercel lambda does not carry.
+  // The library engine DOES land at /var/task/prisma/generated/client via
+  // outputFileTracingIncludes and is pinned at runtime by the
+  // PRISMA_QUERY_ENGINE_LIBRARY env var (production, set by X.61).
+  output        = "../prisma/generated/client"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum WalletStatus {
+  ACTIVE
+  REVOKED
+  DELETED
+}
+
+enum AltanaSessionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REVOKING
+  REVOKED
+  FAILED
+}
+
+enum SessionPermissionKind {
+  CALL
+  TOKEN_SPEND
+  NATIVE_SPEND
+}
+
+enum EncryptedSecretType {
+  ALTANA_SESSION_SIGNER
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+  DENIED
+}
+
+model User {
+  id             String          @id @default(uuid()) @db.Uuid
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  wallets        Wallet[]
+  authSessions   AuthSession[]
+  altanaSessions AltanaSession[]
+  auditEvents    AuditEvent[]
+
+  @@index([deletedAt])
+  @@index([createdAt])
+}
+
+model Wallet {
+  id             String          @id @default(uuid()) @db.Uuid
+  userId         String          @db.Uuid
+  chainId        Int
+  address        String          @db.VarChar(42)
+  status         WalletStatus    @default(ACTIVE)
+  verifiedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  user           User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  authSessions   AuthSession[]
+  altanaSessions AltanaSession[]
+  auditEvents    AuditEvent[]
+
+  @@unique([chainId, address])
+  @@index([userId, status])
+  @@index([address])
+}
+
+model SiweChallenge {
+  id            String    @id @default(uuid()) @db.Uuid
+  nonceHash     String    @unique @db.VarChar(64)
+  attemptHash   String    @unique @db.VarChar(64)
+  address       String    @db.VarChar(42)
+  chainId       Int
+  domain        String    @db.VarChar(255)
+  uri           String    @db.Text
+  messageDigest String    @db.VarChar(64)
+  issuedAt      DateTime
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@index([consumedAt, expiresAt])
+  @@index([address, createdAt])
+}
+
+model AuthSession {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid
+  walletId          String    @db.Uuid
+  tokenHash         String    @unique @db.VarChar(64)
+  csrfTokenHash     String    @db.VarChar(64)
+  chainId           Int
+  createdAt         DateTime  @default(now())
+  lastUsedAt        DateTime  @default(now())
+  expiresAt         DateTime
+  absoluteExpiresAt DateTime
+  revokedAt         DateTime?
+  user              User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  wallet            Wallet    @relation(fields: [walletId], references: [id], onDelete: Restrict)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([walletId, revokedAt])
+  @@index([expiresAt])
+  @@index([absoluteExpiresAt])
+}
+
+model AltanaSession {
+  id                      String              @id @default(uuid()) @db.Uuid
+  userId                  String              @db.Uuid
+  walletId                String              @db.Uuid
+  sessionIdentifier       String              @unique @db.VarChar(128)
+  chainId                 Int
+  agentId                 BigInt?
+  walletAddress           String              @db.VarChar(42)
+  publicKey               String              @db.VarChar(132)
+  keyId                   String              @db.VarChar(66)
+  status                  AltanaSessionStatus @default(PENDING)
+  keyStoreActive          Boolean             @default(false)
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  expiresAt               DateTime
+  revokedAt               DateTime?
+  lastVerifiedAt          DateTime?
+  grantCallsId            String?             @db.VarChar(66)
+  registrationCallsId     String?             @db.VarChar(66)
+  registrationTxHash      String?             @db.VarChar(66)
+  revokeCallsId           String?             @db.VarChar(66)
+  revokeTxHash            String?             @db.VarChar(66)
+  publicMetadata          Json?
+  user                    User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  wallet                  Wallet              @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  permissions             SessionPermission[]
+  encryptedSecret         EncryptedSecret?
+  auditEvents             AuditEvent[]
+
+  @@unique([chainId, keyId])
+  @@unique([chainId, publicKey])
+  @@index([userId, status])
+  @@index([walletId, status])
+  @@index([status, expiresAt])
+  @@index([expiresAt])
+}
+
+model SessionPermission {
+  id                String                  @id @default(uuid()) @db.Uuid
+  sessionId         String                  @db.Uuid
+  kind              SessionPermissionKind
+  targetAddress     String?                 @db.VarChar(42)
+  functionSelector  String?                 @db.VarChar(10)
+  functionSignature String?                 @db.VarChar(256)
+  tokenAddress      String?                 @db.VarChar(42)
+  spendCapRaw       Decimal?                @db.Decimal(78, 0)
+  spendPeriod       String?                 @db.VarChar(16)
+  expiresAt         DateTime?
+  enabled           Boolean                 @default(true)
+  revokedAt         DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  session           AltanaSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId, kind, enabled])
+  @@index([sessionId, revokedAt])
+  @@index([expiresAt])
+}
+
+model EncryptedSecret {
+  id             String              @id @default(uuid()) @db.Uuid
+  sessionId      String              @unique @db.Uuid
+  secretType     EncryptedSecretType
+  ciphertext     Bytes
+  nonce          Bytes
+  authenticationTag Bytes
+  wrappedDataKey Bytes
+  kmsKeyId       String              @db.VarChar(512)
+  kmsKeyVersion  String              @db.VarChar(128)
+  algorithm      String              @db.VarChar(64)
+  aadMetadata    Json
+  aadVersion     Int                 @default(1)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  destroyedAt    DateTime?
+  session        AltanaSession       @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@index([kmsKeyId, kmsKeyVersion])
+  @@index([destroyedAt])
+}
+
+model AuditEvent {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String?      @db.Uuid
+  walletId        String?      @db.Uuid
+  sessionId       String?      @db.Uuid
+  eventType       String       @db.VarChar(64)
+  result          AuditResult
+  actorType       String       @db.VarChar(32)
+  actorIdentifier String?      @db.VarChar(128)
+  resourceType    String?      @db.VarChar(64)
+  resourceId      String?      @db.VarChar(128)
+  requestId       String?      @db.VarChar(128)
+  chainId         Int?
+  callsId         String?      @db.VarChar(66)
+  transactionHash String?      @db.VarChar(66)
+  safeMetadata    Json?
+  createdAt       DateTime     @default(now())
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  wallet          Wallet?      @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  session         AltanaSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([walletId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([result, createdAt])
+  @@index([requestId])
+}
+
+// X.49 — fixed-window rate-limit buckets (authoritative, cross-instance).
+// `windowKey` is the fixed UTC window slot; old buckets are superseded by
+// rotation and may be pruned by an ops job. No audit/secret data here.
+model RateLimitBucket {
+  key       String @db.VarChar(192)
+  windowKey String @db.VarChar(16)
+  count     Int    @default(0)
+
+  @@id([key, windowKey])
+  @@index([windowKey])
 }

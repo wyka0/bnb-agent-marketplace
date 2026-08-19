@@ -65,3 +65,20 @@ export function isValidSlug(slug: string): boolean {
 export function isAgentIdSlug(slug: string): boolean {
   return /^\d+:0x[0-9a-fA-F]{40}:\d+$/.test(slug);
 }
+
+/**
+ * Decode a dynamic route segment exactly once at the route boundary.
+ *
+ * The App Router can deliver dynamic params still percent-encoded
+ * (`/agents/8453%3A0x…%3A63854` arrives as `8453%3A0x…%3A63854`).
+ * Registry identities and name slugs never contain `%`, so a single decode
+ * is idempotent for every valid slug; malformed escapes (`%zz`) are rejected
+ * as invalid input so callers keep their not-found behavior.
+ */
+export function decodeSlugParam(raw: string): string | null {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}

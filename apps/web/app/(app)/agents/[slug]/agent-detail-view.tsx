@@ -38,11 +38,14 @@ import {
   User,
 } from "lucide-react";
 import type { TermixReputationResult } from "@/lib/termix/reputation";
-import type { PancakeSwapIntelligenceData, PancakeSwapIntelligencePool } from "@/lib/pancakeswap/intelligence";
+import type {
+  PancakeSwapIntelligenceData,
+  PancakeSwapIntelligencePool,
+} from "@/lib/pancakeswap/intelligence";
 import {
-  PANCAKESWAP_SOURCE_LABEL,
   PANCAKESWAP_SECTION_TITLE,
   PANCAKESWAP_SECTION_DESCRIPTION,
+  PANCAKESWAP_SOURCE_LABEL,
   PANCAKESWAP_VOLUME_LABEL,
   PANCAKESWAP_VOLUME_NOTE,
   PANCAKESWAP_FEE_TIER_LABEL,
@@ -90,6 +93,7 @@ import { chainLabelForId } from "@/lib/eight004scan/card";
 import { AAVE_AGENT_ID } from "@/lib/activation/contract";
 import { AaveActivationPreview } from "./aave-activation-preview";
 import { HireReviewPanel } from "./hire-review-panel";
+import { classifyAgentActivation } from "@/lib/activation/capability";
 
 /* ------------------------------------------------------------------ *
  * Honest primitives — the em-dash and pending helpers used everywhere.
@@ -334,7 +338,6 @@ function PancakeSwapPoolSection({ data }: { data: PancakeSwapIntelligenceData })
           <p className="mt-3 text-[11px] text-muted-foreground">
             {formatSampleScope(data.sample)}
           </p>
-          <p className="mt-3 text-[11px] text-muted-foreground/80">{PANCAKESWAP_READ_ONLY_DISCLAIMER}</p>
         </>
       ) : (
         <div
@@ -347,6 +350,7 @@ function PancakeSwapPoolSection({ data }: { data: PancakeSwapIntelligenceData })
           <p className="max-w-md text-sm text-muted-foreground">{pancakeSwapFailureCopy(data)}</p>
         </div>
       )}
+      <p className="mt-3 text-[11px] text-muted-foreground/80">{PANCAKESWAP_READ_ONLY_DISCLAIMER}</p>
     </Section>
   );
 }
@@ -504,6 +508,9 @@ export function AgentDetailView({
   // the route slug (shared helper — no fabricated registry data). The raw slug
   // is never changed; the registry "Reference" field below still shows it.
   const title = agent?.name ?? titleFromSlug(slug);
+  const activation = agent
+    ? classifyAgentActivation({ chainId: agent.chainId, isTestnet: agent.isTestnet })
+    : null;
 
   /* ---- Date formatting (client-side; server value `retrievedAt` is ISO) ---- */
   const formatTime = React.useCallback((iso: string) => {
@@ -519,7 +526,6 @@ export function AgentDetailView({
 
   /* ---- Interactive-only UI state (no persistence, no data) ---- */
   const [favorite, setFavorite] = React.useState(false);
-  const [compare, setCompare] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
   /**
@@ -599,7 +605,7 @@ export function AgentDetailView({
         >
           Hire
           <span className="rounded-full bg-primary-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-            Soon
+            Unavailable
           </span>
         </button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground/80">
@@ -854,12 +860,14 @@ export function AgentDetailView({
               variant="outline"
               size="sm"
               className="w-9 justify-center px-0 sm:w-auto sm:px-3"
-              aria-pressed={compare}
-              aria-label={compare ? "Remove from compare" : "Add to compare"}
-              onClick={() => setCompare((v) => !v)}
+              aria-label="Compare this agent"
+              disabled={!agent}
+              onClick={() => {
+                if (agent) router.push(`/compare?compare=${encodeURIComponent(agent.slug)}`);
+              }}
             >
               <GitCompareArrows className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">{compare ? "In compare" : "Compare"}</span>
+              <span className="hidden sm:inline">Compare</span>
             </Button>
           </div>
         </div>
@@ -1237,14 +1245,16 @@ export function AgentDetailView({
           </Button>
           <button
             type="button"
-            disabled
-            title="Hire arrives with the live ERC-8004 Registry"
+            disabled={!agent || activation?.state !== "ACTIVATABLE"}
+            title={activation?.detail ?? "A resolved registry agent is required."}
+            onClick={() => {
+              if (agent && activation?.state === "ACTIVATABLE") {
+                router.push(`/agents/${encodeURIComponent(agent.slug)}/hire`);
+              }
+            }}
             className="inline-flex h-11 items-center justify-center gap-1.5 rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            Hire
-            <span className="rounded-full bg-primary-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-              Soon
-            </span>
+            {activation?.state === "ACTIVATABLE" ? "Review & Activate" : "Activation unavailable"}
           </button>
         </div>
       </div>

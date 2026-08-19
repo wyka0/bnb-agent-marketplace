@@ -6,6 +6,7 @@ import { Menu, Search, X } from "lucide-react";
 import { cn } from "@bnb-marketplace/ui";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandLogo } from "@/components/brand-logo";
+import { AuthControls } from "@/components/auth-controls";
 
 const NAV_LINKS: readonly { href: string; label: string; external?: boolean }[] = [
   { href: "/marketplace", label: "Marketplace" },
@@ -57,17 +58,7 @@ export function HomeNav() {
 
           <ThemeToggle />
 
-          <button
-            type="button"
-            disabled
-            title="Wallet connection arrives in a future sprint"
-            className="hidden h-10 items-center gap-2 rounded-md border border-border bg-primary/10 px-4 text-sm font-medium text-primary opacity-70 xl:inline-flex"
-          >
-            Connect Wallet
-            <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-              Coming Soon
-            </span>
-          </button>
+          <div className="hidden xl:block"><AuthControls /></div>
 
           <button
             type="button"
@@ -115,17 +106,7 @@ export function HomeNav() {
             )
           )}
           <div className="mt-1 border-t border-border/60 pt-3">
-            <button
-              type="button"
-              disabled
-              title="Wallet connection arrives in a future sprint"
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border bg-primary/10 px-4 text-sm font-medium text-primary opacity-70"
-            >
-              Connect Wallet
-              <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                Coming Soon
-              </span>
-            </button>
+            <AuthControls />
           </div>
         </nav>
       </div>

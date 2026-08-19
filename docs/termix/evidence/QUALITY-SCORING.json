@@ -1,0 +1,86 @@
+{
+  "rubric": "docs/termix/EXPERIMENT-PROTOCOL.md — fixed 0-5 per dimension, max 25",
+  "scored_from": "only the artifacts saved under docs/termix/evidence/",
+  "scorer_note": "Same scorer, same rubric, both arms, after execution. Scores are justified per dimension; any dimension that cannot be judged objectively is marked NOT ASSESSABLE.",
+
+  "task-01": {
+    "arm_a": {
+      "D1_correctness": { "score": 3, "justification": "62 selected; 2 adjudicated false positives (MolloW, @cryptohayes) included. Captured all 3 genuine agents Arm B missed." },
+      "D2_completeness": { "score": 3, "justification": "Returned matches and raw hit/retrieved counts, but reported no coverage bound in its output shape and no per-record basis." },
+      "D3_actionability": { "score": 2, "justification": "Names only; no stable identifier for follow-up. Evidence file shows a 5-name sample without slugs." },
+      "D4_data_source_quality": { "score": 1, "justification": "No timestamp, no per-record attribution, no statement of what justified inclusion." },
+      "D5_risk_awareness": { "score": 0, "justification": "No limitation or unavailable-metric statement of any kind in the output." },
+      "total": 9
+    },
+    "arm_b": {
+      "D1_correctness": { "score": 3, "justification": "58 matched; eliminated 2 false positives BUT missed 3 genuine yield agents via description-precedence. Net correctness comparable to Arm A, not superior." },
+      "D2_completeness": { "score": 5, "justification": "Reported matched/retrieved/hits (58/100/131), making coverage bounds explicit and auditable." },
+      "D3_actionability": { "score": 5, "justification": "Every record carries a stable registry slug plus chain and verification status." },
+      "D4_data_source_quality": { "score": 5, "justification": "Per-record evidenceField, evidenceText, evidenceSource, plus a retrieval timestamp and named source." },
+      "D5_risk_awareness": { "score": 4, "justification": "Source framed as inference from metadata (not a registry verdict); category page states unavailable metrics. Not 5 because the false-negative risk of description-precedence is not surfaced to the user." },
+      "total": 22
+    },
+    "verdict": "Arm B scored 22/25 vs Arm A 9/25 on the pre-registered rubric. The advantage is in provenance, completeness and actionability — NOT in correctness, where the two arms traded different error types."
+  },
+
+  "task-02": {
+    "arm_a": {
+      "D1_correctness": { "score": 2, "justification": "Health-factor category: 7/7 divergent records were false positives. Grid: 3 unguarded matches." },
+      "D2_completeness": { "score": 3, "justification": "All four categories reported with hits/retrieved/selected." },
+      "D3_actionability": { "score": 2, "justification": "Counts only; no per-record identifier or basis retained." },
+      "D4_data_source_quality": { "score": 1, "justification": "No timestamps, no per-record attribution." },
+      "D5_risk_awareness": { "score": 0, "justification": "No limitation reported; a failure in one category is not distinguished from a genuine zero." },
+      "total": 8
+    },
+    "arm_b": {
+      "D1_correctness": { "score": 4, "justification": "Eliminated 7/7 health-factor false positives and applied the grid context guard, with no false negatives observed in those two categories. Not 5 because yield-optimisation retains 3 known false negatives." },
+      "D2_completeness": { "score": 5, "justification": "All four categories with matched/retrieved/hits and per-record justification availability confirmed true." },
+      "D3_actionability": { "score": 4, "justification": "Per-category state plus retrievable justified records; triage decision is directly supportable." },
+      "D4_data_source_quality": { "score": 5, "justification": "Explicit state per category, source, timestamps, and evidence retained per record." },
+      "D5_risk_awareness": { "score": 5, "justification": "Distinguishes ready/empty/failure states so an upstream failure cannot be misread as zero supply." },
+      "total": 23
+    },
+    "verdict": "Arm B 23/25 vs Arm A 8/25. Timing was effectively identical (4159 ms vs 4214 ms) and request cost identical (4 vs 4), so this task shows a QUALITY advantage with NO speed or cost advantage."
+  },
+
+  "task-03": {
+    "arm_a": {
+      "D1_correctness": { "score": 1, "justification": "Accepted a challenge selected against mainnet chain 56 — the security-critical failure this task tests. Correctly refused the malformed body." },
+      "D2_completeness": { "score": 2, "justification": "Checked object shape and presence of accepts[]/network only; no rail or chain resolution." },
+      "D3_actionability": { "score": 2, "justification": "Produces an accept/refuse decision but with a reason that does not support the decision ('network field present')." },
+      "D4_data_source_quality": { "score": 2, "justification": "Offline by nature; reasons cite only field presence, not a validated rail or chain." },
+      "D5_risk_awareness": { "score": 0, "justification": "Explicitly reports chainEnforcement NOT PERFORMED — no chain allowlist exists in the naive procedure." },
+      "total": 7
+    },
+    "arm_b": {
+      "D1_correctness": { "score": 5, "justification": "Accepted the valid chain-97 challenge, refused the mainnet target, refused the malformed body — 3/3 against the pre-registered success criteria." },
+      "D2_completeness": { "score": 5, "justification": "All three cases decided with a specific reason each." },
+      "D3_actionability": { "score": 5, "justification": "Decision plus precise reason ('Mainnet (chain 56) is not enabled', 'no payable options')." },
+      "D4_data_source_quality": { "score": 4, "justification": "Reasons derive from the validated rail/chain resolution. Offline, so no external source to attribute; not 5 for that reason." },
+      "D5_risk_awareness": { "score": 5, "justification": "chainEnforcement ENFORCED, and explicitly records signed:false / submitted:false — no transaction risk taken." },
+      "total": 24
+    },
+    "verdict": "Arm B 24/25 vs Arm A 7/25. This is the strongest and least ambiguous result: Arm A ACCEPTED a mainnet-targeted payment challenge that Arm B refused."
+  },
+
+  "aggregate": {
+    "arm_a_total": 24,
+    "arm_b_total": 69,
+    "max_possible": 75,
+    "timing_summary": {
+      "task-01": "Arm A 5513 ms vs Arm B 1426 ms (single run, warm network)",
+      "task-02": "Arm A 4214 ms vs Arm B 4159 ms (no meaningful difference)",
+      "task-03": "Arm A 0 ms vs Arm B 2 ms (both effectively instant; Arm B is 2 ms slower)"
+    },
+    "cost_summary": {
+      "billable_upstream_requests": "task-01 1v1, task-02 4v4, task-03 0v0 — identical in every task",
+      "monetary": "NOT MEASURABLE — no published per-request price"
+    },
+    "honest_caveats": [
+      "Timings are single-run, not averaged; task-01's gap is influenced by network variance and cannot be attributed solely to the agent.",
+      "Arm A is a scripted naive baseline, not a skilled human analyst; a skilled analyst would likely score higher on correctness.",
+      "No cost advantage was demonstrated in any task.",
+      "Arm B has 3 known false negatives in yield-optimisation."
+    ]
+  }
+}

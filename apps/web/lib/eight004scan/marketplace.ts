@@ -98,6 +98,8 @@ export interface GetMarketplaceAgentsOptions {
   page?: number;
   /** Bounded page size, reused from the verified pagination (1..100). */
   limit?: number;
+  /** Optional live registry search (name, metadata, or registry identity). */
+  query?: string;
 }
 
 /**
@@ -109,6 +111,7 @@ export async function getMarketplaceAgents(
 ): Promise<MarketplaceData> {
   const page = options.page ?? 1;
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
+  const query = options.query?.trim();
   if (!has8004ScanApiKey()) {
     return { state: "missing-key", ...EMPTY };
   }
@@ -118,6 +121,7 @@ export async function getMarketplaceAgents(
     isTestnet: false,
     sortBy: "created_at",
     sortOrder: "desc",
+    search: query || undefined,
   });
   return toMarketplaceData(result);
 }

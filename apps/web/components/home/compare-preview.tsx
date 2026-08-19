@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { ArrowRight, GitCompareArrows } from "lucide-react";
+import { RegistryBadge } from "@bnb-marketplace/ui";
 import { Reveal } from "./reveal";
-
-const COMPARE_ROWS = [
-  "Capabilities",
-  "Permission surface",
-  "Live performance",
-  "Fee model",
-] as const;
+import { chainLabelForId } from "@/lib/eight004scan/card";
+import type { MarketplaceData } from "@/lib/eight004scan/marketplace";
 
 const AGENT_SLOTS = 3;
 
-export function ComparePreview() {
+export function ComparePreview({ data }: { data: MarketplaceData }) {
+  const ready = data.state === "ready";
+  const agents = ready ? data.agents.slice(0, AGENT_SLOTS) : [];
+  const anyAgents = agents.length > 0;
+
   return (
     <section aria-label="Compare agents preview" className="container py-10">
       <Reveal>
@@ -25,8 +25,9 @@ export function ComparePreview() {
                 Compare agents side by side
               </h2>
               <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-                Line up capabilities, permissions, and live performance across any agents once the
-                catalog is synced.
+                {anyAgents
+                  ? "The newest registry agents below — compare their real registry fields."
+                  : "Compare agents by their real registry fields once the catalog responds."}
               </p>
             </div>
             <Link
@@ -43,44 +44,81 @@ export function ComparePreview() {
           </div>
 
           <div className="overflow-x-auto border-t border-border/70">
-            <table className="w-full min-w-[640px] border-collapse text-sm">
-              <caption className="sr-only">
-                Comparison preview — agent slots are awaiting registry sync
-              </caption>
-              <thead>
-                <tr className="border-b border-border/70">
-                  <th scope="col" className="w-1/4 px-6 py-4 text-left font-semibold">
-                    Metric
-                  </th>
-                  {Array.from({ length: AGENT_SLOTS }, (_, i) => (
-                    <th
-                      key={i}
-                      scope="col"
-                      className="px-6 py-4 text-left font-medium text-muted-foreground"
-                    >
-                      <span className="inline-flex items-center gap-2.5">
-                        <span className="h-7 w-7 shrink-0 animate-shimmer rounded-full bg-[linear-gradient(110deg,hsl(var(--muted))_8%,hsl(var(--accent))_18%,hsl(var(--muted))_33%)] bg-[length:200%_100%]" />
-                        Agent {String.fromCharCode(65 + i)}
-                      </span>
+            {anyAgents ? (
+              <table className="w-full min-w-[640px] border-collapse text-sm">
+                <caption className="sr-only">
+                  Comparison preview — the first {agents.length} of the newest ERC-8004 registry
+                  records, real fields only.
+                </caption>
+                <thead>
+                  <tr className="border-b border-border/70">
+                    <th scope="col" className="w-1/4 px-6 py-4 text-left font-semibold">
+                      Metric
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARE_ROWS.map((row, index) => (
-                  <tr key={row} className={index % 2 === 1 ? "bg-card/40" : undefined}>
+                    {agents.map((agent) => (
+                      <th
+                        key={agent.slug}
+                        scope="col"
+                        className="px-6 py-4 text-left font-medium text-muted-foreground"
+                      >
+                        {agent.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
                     <th scope="row" className="px-6 py-4 text-left font-medium">
-                      {row}
+                      Capabilities
                     </th>
-                    {Array.from({ length: AGENT_SLOTS }, (_, i) => (
-                      <td key={i} className="px-6 py-4 tabular-nums text-muted-foreground">
-                        --
+                    {agents.map((agent) => (
+                      <td key={agent.slug} className="px-6 py-4 tabular-nums text-muted-foreground">
+                        {agent.protocols.length > 0 ? agent.protocols.join(" · ") : "None listed"}
                       </td>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                  <tr className="bg-card/40">
+                    <th scope="row" className="px-6 py-4 text-left font-medium">
+                      Verification
+                    </th>
+                    {agents.map((agent) => (
+                      <td key={agent.slug} className="px-6 py-4 tabular-nums text-muted-foreground">
+                        {agent.verification === "verified" ? "Verified" : "Unverified"}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th scope="row" className="px-6 py-4 text-left font-medium">
+                      Chain
+                    </th>
+                    {agents.map((agent) => (
+                      <td key={agent.slug} className="px-6 py-4 tabular-nums text-muted-foreground">
+                        {chainLabelForId(agent.chainId)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="bg-card/40">
+                    <th scope="row" className="px-6 py-4 text-left font-medium">
+                      Listed
+                    </th>
+                    {agents.map((agent) => (
+                      <td key={agent.slug} className="px-6 py-4 tabular-nums text-muted-foreground">
+                        {agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : "—"}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            ) : (
+              <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+                <RegistryBadge state={data.state === "missing-key" ? "waiting" : "offline"} size="sm" />
+                <p className="max-w-md text-sm text-muted-foreground">
+                  {data.state === "missing-key"
+                    ? "The 8004scan API key is missing on the server (8004SCAN_API_KEY) — comparison rows will appear once it is configured."
+                    : "The ERC-8004 registry is unavailable right now — comparison rows will appear when it responds."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </Reveal>

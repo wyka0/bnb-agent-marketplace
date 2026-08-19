@@ -1,0 +1,51 @@
+{
+  "analysis": "naive-only record adjudication for Task 1",
+  "method": "Arm A (naive substring on name+description) selected 62; Arm B (marketplace agent) matched 58. The 5 records selected by Arm A only were inspected individually against the task criterion: does the agent's OWN registry metadata indicate yield-optimisation capability?",
+  "criterion": "docs/termix/EXPERIMENT-PROTOCOL.md Task 1 SUCCESS CRITERIA (a)",
+  "records": [
+    {
+      "name": "positioncrew-yield-optimizer.agent",
+      "description_excerpt": "Compares block-pinned Venus stablecoin markets and returns a liquidity-, concentration-, migration-cost-, and risk-bounded allocation or HOLD.",
+      "adjudication": "TRUE POSITIVE missed by Arm B",
+      "reasoning": "The description describes yield allocation across Venus lending markets, which satisfies the criterion. The word 'yield' appears only in the NAME, and the classifier's description-precedence rule ignores name evidence when a description exists. This is a FALSE NEGATIVE for the marketplace agent."
+    },
+    {
+      "name": "defi_yield_optimizer.agent",
+      "description_excerpt": "Helping investors and protocols maximize capital efficiency across DeFi ecosystems.",
+      "adjudication": "TRUE POSITIVE missed by Arm B",
+      "reasoning": "'maximize capital efficiency across DeFi' is yield optimisation in substance; 'yield' appears only in the name. Same false-negative mechanism."
+    },
+    {
+      "name": "DeFi-Yield-Optimizer.agent",
+      "description_excerpt": "DeFi automation expert helping users maximize yields through intelligent optimization strategies and automated portfolio management.",
+      "adjudication": "TRUE POSITIVE missed by Arm B",
+      "reasoning": "Description says 'maximize yields ... optimization strategies'. Note the plural 'yields' does not match the classifier's \\byield\\b word-boundary pattern in the same form as its phrase table expects for this record, so it was not matched. FALSE NEGATIVE."
+    },
+    {
+      "name": "MolloW",
+      "description_excerpt": "An EvoEvo AI Agent. You are an elite cryptocurrency market analyst and on-chain tracking agent. Your primary mission is to analyze liquidity flows, mo...",
+      "adjudication": "FALSE POSITIVE correctly rejected by Arm B",
+      "reasoning": "A general market-analyst prompt persona, not a yield-optimisation agent. Arm A selected it on incidental keyword presence. Arm B correctly excluded it."
+    },
+    {
+      "name": "@cryptohayes · Ensoul",
+      "description_excerpt": "Arthur Hayes is the Co-Founder of BitMEX and CIO of Maelstrom Fund, a highly influential crypto-native macro thinker...",
+      "adjudication": "FALSE POSITIVE correctly rejected by Arm B",
+      "reasoning": "A persona/commentator profile with no yield-optimisation capability. Arm A selected it on incidental keyword presence. Arm B correctly excluded it."
+    }
+  ],
+  "summary": {
+    "armA_selected": 62,
+    "armB_matched": 58,
+    "armA_only": 5,
+    "armA_only_true_positives": 3,
+    "armA_only_false_positives": 2,
+    "conclusion": "Neither arm is strictly superior on correctness in this test. Arm B eliminated 2 clear false positives and supplied per-record justification, but missed 3 genuine yield agents because its description-precedence rule discards name evidence when any description exists. This is recorded as a real limitation, not smoothed over."
+  },
+  "verified_mechanism": {
+    "test": "classifyAgent() run on three synthetic records",
+    "name-has-yield-keyword-but-description-does-not": "matched NONE (reproduces the false negative)",
+    "both-name-and-description-have-keyword": "matched yield-optimisation",
+    "irrelevant-persona-with-incidental-keyword-in-description": "matched yield-optimisation (shows the classifier is not immune to keyword noise either)"
+  }
+}

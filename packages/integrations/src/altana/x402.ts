@@ -39,7 +39,7 @@
 
 import { PERMIT2_ADDRESS } from "@altananetwork/sdk";
 import type { Client, Session, X402Requirement, X402Resource } from "@altananetwork/sdk";
-import { normalizeResource } from "@altananetwork/sdk";
+import { normalizeResource, selectX402Requirement } from "@altananetwork/sdk";
 import { U_TOKEN, USDT_BSC } from "@altananetwork/x402-server";
 import type { MerchantConfig, RailConfig, TokenConfig } from "@altananetwork/x402-server";
 import { createAltanaClient } from "./client.js";
@@ -244,6 +244,50 @@ export function parsePaymentRequired(body: unknown): X402PaymentRequiredParse {
     return { ok: false, reason: "x402 402 body offered no structurally valid requirement." };
   }
   return { ok: true, requirements, ...(resource !== undefined ? { resource } : {}) };
+}
+
+export type X402RequirementSelection =
+  | { ok: true; requirement: X402Requirement }
+  | { ok: false; reason: string };
+
+/**
+ * X.55: select ONE payable requirement from a parsed 402 challenge.
+ *
+ * Closes a real gap: `parsePaymentRequired` was public, but the official
+ * `selectX402Requirement` was only reachable inside this package, so a caller
+ * could parse a challenge and then had no supported way to choose an option.
+ *
+ * Pure and offline — delegates to the official SDK selector, crosses NO
+ * execution boundary, signs nothing, submits nothing, and needs no session,
+ * signer, key, or network access. Chain 97 remains the only permitted target.
+ */
+export function selectPaymentRequirement(
+  requirements: readonly X402Requirement[],
+  opts: { network?: X402NetworkInput; preferRail?: "permit2" | "eip3009" } = {}
+): X402RequirementSelection {
+  if (requirements.length === 0) {
+    return { ok: false, reason: "x402 selection requires at least one parsed requirement." };
+  }
+  // Reuses the same chain guard as the rest of the adapter: mainnet and any
+  // unexpected chain throw before a requirement can be selected.
+  let network: X402NetworkInfo;
+  try {
+    network = getX402Network(opts.network ?? ALTANA_X402_CHAIN_ID);
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : "unsupported x402 network" };
+  }
+
+  const selected = selectX402Requirement(requirements as X402Requirement[], {
+    chainId: network.chainId,
+    preferRail: opts.preferRail ?? "permit2",
+  });
+  if (selected === undefined || selected === null) {
+    return {
+      ok: false,
+      reason: `x402 challenge offered no requirement payable on ${network.network} (chain ${network.chainId}).`,
+    };
+  }
+  return { ok: true, requirement: selected };
 }
 
 export interface X402RequestOptions {

@@ -126,13 +126,11 @@ export function AgentCardStandard({
           <button
             type="button"
             disabled={!agent.hireable}
-            title={agent.hireable ? undefined : "Hire arrives with live registry integration"}
+            onClick={() => onViewDetails?.(agent)}
+            title={agent.hireable ? "Review activation" : agent.hireUnavailableReason}
             className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-[0_0_20px_-6px_hsl(var(--primary)/0.7)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            Hire
-            <span className="rounded-full bg-primary-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-              Soon
-            </span>
+            {agent.hireable ? "Activate" : "Unavailable"}
           </button>
         </div>
       </div>

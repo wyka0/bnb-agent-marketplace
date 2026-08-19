@@ -24,6 +24,7 @@
  * browser. No network calls happen at import time.
  */
 
+import "server-only";
 import { createApiClient, ApiClientError } from "@bnb-marketplace/data-api";
 
 /* -- Constants + GraphQL query mirrored from packages/integrations/src/pancakeswap/* -- */
@@ -145,6 +146,10 @@ export interface PancakeSwapPool {
   tvlUsd: number;
   /** CUMULATIVE lifetime volume, USD — NOT 24h. */
   volumeUsd: number;
+  /** Real current token quantity of token0 held by the pool (reserve0). */
+  reserve0: number;
+  /** Real current token quantity of token1 held by the pool (reserve1). */
+  reserve1: number;
   token0Price: number;
   token1Price: number;
   /** Cumulative swaps count. */
@@ -217,7 +222,9 @@ export function isValidRawPair(v: unknown): v is PcsRawPair {
     parseDecimal(p.volumeUSD) !== null &&
     parseDecimal(p.token0Price) !== null &&
     parseDecimal(p.token1Price) !== null &&
-    parseDecimal(p.totalTransactions) !== null
+    parseDecimal(p.totalTransactions) !== null &&
+    parseDecimal(p.reserve0) !== null &&
+    parseDecimal(p.reserve1) !== null
   );
 }
 
@@ -236,6 +243,8 @@ export function normalizePair(raw: unknown): PancakeSwapPool | null {
     symbol: `${t0.symbol}/${t1.symbol}`,
     tvlUsd: parseDecimal(raw.reserveUSD)!,
     volumeUsd: parseDecimal(raw.volumeUSD)!, // cumulative, NOT 24h
+    reserve0: parseDecimal(raw.reserve0)!, // real current token0 quantity
+    reserve1: parseDecimal(raw.reserve1)!, // real current token1 quantity
     token0Price: parseDecimal(raw.token0Price)!,
     token1Price: parseDecimal(raw.token1Price)!,
     totalTransactions: parseDecimal(raw.totalTransactions)!,

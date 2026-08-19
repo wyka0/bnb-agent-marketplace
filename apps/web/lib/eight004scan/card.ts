@@ -46,6 +46,10 @@ export function agentHrefFromId(slug: string): string {
 }
 
 export function toAgentCardData(agent: LeaderboardAgent): AgentCardData {
+  const activation = classifyAgentActivation({
+    chainId: agent.chainId,
+    isTestnet: agent.isTestnet,
+  });
   const reputation =
     agent.averageScore != null || agent.totalFeedbacks != null
       ? {
@@ -69,8 +73,8 @@ export function toAgentCardData(agent: LeaderboardAgent): AgentCardData {
     // `hireable` is CAPABILITY-DERIVED, never hard-coded: true only when the
     // agent classifies ACTIVATABLE (chain 97 + a verified actionable
     // capability). All real registry agents stay non-hireable/honest.
-    hireable:
-      classifyAgentActivation({ chainId: agent.chainId, isTestnet: agent.isTestnet }).state ===
-      "ACTIVATABLE",
+    hireable: activation.state === "ACTIVATABLE",
+    hireUnavailableReason:
+      activation.state === "ACTIVATABLE" ? undefined : activation.detail,
   } as AgentCardData;
 }

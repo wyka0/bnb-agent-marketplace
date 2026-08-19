@@ -203,6 +203,7 @@ function buildQueryString(state: {
   activity: Set<string>;
   status: Set<string>;
   verifiedBuildersOnly: boolean;
+  compareSlugs: Set<string>;
 }): string {
   const p = new URLSearchParams();
   if (state.query) p.set("q", state.query);
@@ -217,6 +218,7 @@ function buildQueryString(state: {
   if (state.activity.size) p.set("activity", [...state.activity].join(","));
   if (state.status.size) p.set("status", [...state.status].join(","));
   if (state.verifiedBuildersOnly) p.set("builder", "verified");
+  if (state.compareSlugs.size) p.set("compare", [...state.compareSlugs].join(","));
   return p.toString();
 }
 
@@ -276,6 +278,9 @@ export function MarketplaceView({
   const [verifiedBuildersOnly, setVerifiedBuildersOnly] = React.useState(
     () => initial.get("builder") === "verified"
   );
+  const [compareSlugs, setCompareSlugs] = React.useState<Set<string>>(
+    () => new Set((initial.get("compare") ?? "").split(",").filter(Boolean).slice(0, 3))
+  );
 
   // Mirror state → URL (replace, no scroll reset, no new history entry) so the
   // marketplace is shareable and survives an agent round-trip.
@@ -292,6 +297,7 @@ export function MarketplaceView({
     activity,
     status,
     verifiedBuildersOnly,
+    compareSlugs,
   });
   React.useEffect(() => {
     const current = searchParams.toString();
@@ -491,6 +497,15 @@ export function MarketplaceView({
     [router]
   );
 
+  const toggleCompare = React.useCallback((slug: string) => {
+    setCompareSlugs((current) => {
+      const next = new Set(current);
+      if (next.has(slug)) next.delete(slug);
+      else if (next.size < 3) next.add(slug);
+      return next;
+    });
+  }, []);
+
   const retry = React.useCallback(() => {
     window.location.reload();
   }, []);
@@ -653,6 +668,16 @@ export function MarketplaceView({
                 </Modal>
               </div>
               <SortDropdown options={SORT_OPTIONS} value={sort} onChange={setSort} />
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={compareSlugs.size === 0}
+                onClick={() =>
+                  router.push(`/compare?compare=${encodeURIComponent([...compareSlugs].join(","))}`)
+                }
+              >
+                Compare {compareSlugs.size > 0 ? `${compareSlugs.size}/3` : ""}
+              </Button>
               <ViewToggle value={view} onChange={setView} />
               <GridToggle value={density} onChange={setDensity} className="hidden sm:inline-flex" />
             </>
@@ -740,12 +765,19 @@ export function MarketplaceView({
           {rows.length > 0 ? (
             <div className="mt-4">
               <MarketplaceGrid density={density} list={view === "list"}>
-                {cards.map((card) => (
+                {cards.map((card, index) => (
                   <AgentCard
-                    key={card.registry.tokenId}
+                    key={`${card.registry.chainId}:${card.registry.tokenId}`}
                     agent={card}
                     variant={view === "list" ? "compact" : "standard"}
                     onViewDetails={goToAgent}
+                    compare={{
+                      selected: compareSlugs.has(rows[index]?.slug ?? ""),
+                      onToggle: () => {
+                        const slug = rows[index]?.slug;
+                        if (slug) toggleCompare(slug);
+                      },
+                    }}
                   />
                 ))}
               </MarketplaceGrid>
@@ -788,6 +820,17 @@ export function MarketplaceView({
                   icon={Database}
                   title="Registry not connected"
                   description="The 8004scan API key is not configured on the server (8004SCAN_API_KEY, server-side only). Live agents will appear once it is set — no placeholder cards are shown."
+                />
+              </div>
+            ) : data.state === "empty" && query.length > 0 ? (
+              <div className="mt-4">
+                <NoSearchResults
+                  query={query}
+                  action={
+                    <Button variant="outline" size="sm" onClick={resetAll}>
+                      Clear search
+                    </Button>
+                  }
                 />
               </div>
             ) : data.state === "empty" ? (

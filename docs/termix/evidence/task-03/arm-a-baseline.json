@@ -1,0 +1,22 @@
+{
+  "arm": "A",
+  "procedure": "unaided manual field inspection",
+  "elapsedMs": 0,
+  "upstreamRequests": 0,
+  "monetaryCost": "NOT MEASURABLE (offline)",
+  "output": {
+    "validChallenge": {
+      "decision": "accept",
+      "reason": "network field present: bnb-testnet"
+    },
+    "mainnetTarget": {
+      "decision": "accept",
+      "reason": "network field present: bnb-testnet"
+    },
+    "malformed": {
+      "decision": "refuse",
+      "reason": "no accepts[]"
+    },
+    "chainEnforcement": "NOT PERFORMED — naive review has no chain allowlist"
+  }
+}

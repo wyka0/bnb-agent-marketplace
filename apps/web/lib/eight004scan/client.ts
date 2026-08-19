@@ -2,10 +2,12 @@
  * 8004scan Public API — typed, server-only client.
  *
  * - Reuses the shared HTTP foundation (`@bnb-marketplace/data-api`).
- * - Reads the API key ONLY from the server-side `8004SCAN_API_KEY` env var.
- *   The key is NEVER referenced with a `NEXT_PUBLIC_` prefix, and this module is
- *   only imported by server code (the route's server component), so it can never
- *   be bundled into the browser.
+ * - Reads the API key ONLY from server-side env vars: `8004SCAN_API_KEY` is the
+ *   canonical name (local runs, documented key name); `E8004SCAN_API_KEY` is a
+ *   Vercel-compatible alias because Vercel rejects env names starting with a
+ *   digit. The key is NEVER referenced with a `NEXT_PUBLIC_` prefix, and this
+ *   module is only imported by server code (the route's server component), so it
+ *   can never be bundled into the browser.
  * - Keyless-safe: with no key the client still works against the anonymous tier;
  *   callers decide how to present the "no key configured" situation.
  *
@@ -36,7 +38,7 @@ export type Scan8004Result<T> =
 /** Read the server-only API key. Returns `undefined` when unset (keyless). */
 export function get8004ScanApiKey(): string | undefined {
   // Bracket access because the documented env name begins with a digit.
-  const key = process.env["8004SCAN_API_KEY"];
+  const key = process.env["8004SCAN_API_KEY"] ?? process.env["E8004SCAN_API_KEY"];
   return key && key.trim().length > 0 ? key : undefined;
 }
 
@@ -84,6 +86,36 @@ function isListEnvelope(v: unknown): v is Scan8004ListEnvelope<Scan8004Agent> {
 }
 
 /**
+ * X.50: per-record validation for upstream agent rows (closes the X.49 LOW
+ * deferral). Only the identity/type-critical fields the app actually keys on
+ * are enforced; malformed rows are DROPPED rather than trusted, so a hostile
+ * or broken upstream response can never inject partial records downstream.
+ * Optional/nullable metrics stay untouched — `normalizeAgent` already coerces
+ * them without fabricating values.
+ */
+export function isValidAgentRecord(value: unknown): value is Scan8004Agent {
+  if (typeof value !== "object" || value === null) return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.id === "string" &&
+    row.id.length > 0 &&
+    typeof row.agent_id === "string" &&
+    row.agent_id.length > 0 &&
+    typeof row.token_id === "string" &&
+    row.token_id.length > 0 &&
+    typeof row.chain_id === "number" &&
+    Number.isInteger(row.chain_id) &&
+    typeof row.chain_type === "string" &&
+    typeof row.is_testnet === "boolean"
+  );
+}
+
+/** Keep only well-formed upstream rows. */
+export function filterValidAgentRecords(rows: readonly unknown[]): Scan8004Agent[] {
+  return rows.filter(isValidAgentRecord);
+}
+
+/**
  * `GET /agents` — list ERC-8004 agents (paginated).
  *
  * Never throws for HTTP/network problems: returns a discriminated result so the
@@ -111,7 +143,8 @@ export async function listAgents(
 
     const envelope = raw as Scan8004Envelope<Scan8004Agent>;
     if (isListEnvelope(envelope)) {
-      return { ok: true, data: envelope.data, meta: envelope.meta ?? {} };
+      // X.50: drop malformed rows instead of trusting the upstream shape.
+      return { ok: true, data: filterValidAgentRecords(envelope.data), meta: envelope.meta ?? {} };
     }
     // success:false envelope (shape documented) — surface message, no key leak.
     const message =

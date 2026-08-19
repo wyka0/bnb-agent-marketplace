@@ -21,10 +21,18 @@ import { MarketplaceView } from "./marketplace-view";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function MarketplacePage() {
+export default async function MarketplacePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const rawQuery = Array.isArray(params.q) ? params.q[0] : params.q;
+  const query = rawQuery?.trim() ?? "";
+
   // Two bounded reads, run in parallel; discovery degrades per-category.
   const [data, discovery] = await Promise.all([
-    getMarketplaceAgents({ limit: 24, page: 1 }),
+    getMarketplaceAgents({ limit: 24, page: 1, query }),
     getBscCategoryDiscovery({ maxPerCategory: 100 }),
   ]);
   return (

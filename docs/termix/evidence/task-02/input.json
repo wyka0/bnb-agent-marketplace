@@ -1,0 +1,23 @@
+{
+  "task": "cross-category triage",
+  "categories": [
+    {
+      "key": "rebalancing",
+      "keyword": "rebalanc"
+    },
+    {
+      "key": "grid-trading",
+      "keyword": "grid"
+    },
+    {
+      "key": "yield-optimisation",
+      "keyword": "yield"
+    },
+    {
+      "key": "health-factor-monitoring",
+      "keyword": "health"
+    }
+  ],
+  "chainId": 56,
+  "isTestnet": false
+}

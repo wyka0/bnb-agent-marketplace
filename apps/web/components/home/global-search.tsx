@@ -1,15 +1,25 @@
 "use client";
 
+import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
 export function GlobalSearch() {
+  const router = useRouter();
+  const [query, setQuery] = React.useState("");
+
   return (
     <section id="search" className="container scroll-mt-24 pb-4">
       <div className="mx-auto max-w-2xl">
         <form
           role="search"
           aria-label="Global search"
-          onSubmit={(e) => e.preventDefault()}
+          onSubmit={(e) => {
+            e.preventDefault();
+            router.push(
+              query.trim() ? `/marketplace?q=${encodeURIComponent(query.trim())}` : "/marketplace"
+            );
+          }}
           className="relative"
         >
           <Search
@@ -19,6 +29,8 @@ export function GlobalSearch() {
           <input
             type="search"
             name="q"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
             placeholder="Search agents, strategies or categories..."
             aria-label="Search agents, strategies or categories"
             className="h-14 w-full rounded-full border border-border bg-card/70 pl-13 pr-40 text-base text-foreground shadow-lg backdrop-blur transition-colors placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-search-cancel-button]:appearance-none"
@@ -32,7 +44,7 @@ export function GlobalSearch() {
           </span>
         </form>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Search will query the live ERC-8004 agent registry once integration ships.
+          Searches the live ERC-8004 agent registry — results open on the Marketplace.
         </p>
       </div>
     </section>

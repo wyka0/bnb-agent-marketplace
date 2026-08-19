@@ -13,6 +13,7 @@ import {
   requestUserSignature,
   validateActivationRequest,
 } from "./contract.ts";
+import { readBodyWithLimit } from "../auth/request.ts";
 
 const AAVE_MCP_ENDPOINT = "https://erc8004.heyanon.ai/mcp/aave";
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -111,8 +112,8 @@ async function requestJson(
       result: error("malformed-response", "The Aave MCP response was too large."),
     };
   }
-  const raw = await response.text();
-  if (raw.length > MAX_RESPONSE_BYTES) {
+  const raw = await readBodyWithLimit(response.body, MAX_RESPONSE_BYTES);
+  if (raw === null) {
     return {
       ok: false,
       result: error("malformed-response", "The Aave MCP response was too large."),
