@@ -4,7 +4,10 @@ import { AgentDetailView } from "./agent-detail-view";
 import { titleFromSlug, isValidSlug, isAgentIdSlug } from "@/lib/agent-slug";
 import { getMarketplaceAgentBySlug, type AgentLookupResult } from "@/lib/eight004scan/marketplace";
 import { getTermixReputationForAgent, type TermixReputationResult } from "@/lib/termix/reputation";
-import { getPancakeSwapPools, type PancakeSwapPoolsData } from "@/lib/pancakeswap/client";
+import {
+  getPancakeSwapPoolIntelligence,
+  type PancakeSwapIntelligenceData,
+} from "@/lib/pancakeswap/intelligence";
 
 // Per-request only: live registry + optional TermiX lookups must NEVER run
 // during `next build` (no network/secrets needed for CI). Mirrors the
@@ -89,12 +92,14 @@ async function resolveTermix(
 /**
  * Resolve the READ-ONLY PancakeSwap pool intelligence SERVER-SIDE.
  *
- * A small bounded top-pools set from the official V2 subgraph (public, no key,
- * chain 56). Always resolves to a discriminated `PancakeSwapPoolsData`; any
- * failure becomes an honest non-ready state — the page core still renders.
+ * KEYLESS by design (Option B): official public BNB Chain JSON-RPC (eth_call)
+ * + the official PancakeSwap price API (explorer.pancakeswap.com). NO wallet,
+ * signing, approval, swap or transaction of any kind — a strict read-only
+ * boundary. Always resolves to a discriminated `PancakeSwapIntelligenceData`;
+ * any failure becomes an honest non-ready state — the page core still renders.
  */
-function resolvePancakeSwap(): Promise<PancakeSwapPoolsData> {
-  return getPancakeSwapPools({ limit: 5 });
+function resolvePancakeSwap(): Promise<PancakeSwapIntelligenceData> {
+  return getPancakeSwapPoolIntelligence({ limit: 5 });
 }
 
 export default async function AgentDetailPage({

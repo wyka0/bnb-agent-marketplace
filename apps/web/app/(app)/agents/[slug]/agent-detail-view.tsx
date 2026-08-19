@@ -38,16 +38,23 @@ import {
   User,
 } from "lucide-react";
 import type { TermixReputationResult } from "@/lib/termix/reputation";
-import type { PancakeSwapPoolsData, PancakeSwapPool } from "@/lib/pancakeswap/client";
+import type { PancakeSwapIntelligenceData, PancakeSwapIntelligencePool } from "@/lib/pancakeswap/intelligence";
 import {
   PANCAKESWAP_SOURCE_LABEL,
-  PANCAKESWAP_CUMULATIVE_VOLUME_LABEL,
+  PANCAKESWAP_SECTION_TITLE,
+  PANCAKESWAP_SECTION_DESCRIPTION,
+  PANCAKESWAP_VOLUME_LABEL,
+  PANCAKESWAP_VOLUME_NOTE,
+  PANCAKESWAP_FEE_TIER_LABEL,
   PANCAKESWAP_APR_NOTE,
+  PANCAKESWAP_READ_ONLY_DISCLAIMER,
   pancakeSwapFailureCopy,
   displayPools,
   isPancakeSwapReady,
   formatUsd,
   formatCount,
+  formatFeeTier,
+  formatSampleScope,
 } from "./agent-detail-pancakeswap.copy";
 import {
   // layout
@@ -231,8 +238,12 @@ function TermixStat({ label, value }: { label: string; value: number }) {
   );
 }
 
-/** One pool card (read-only). TVL + cumulative volume + token prices + tx count. */
-function PoolCard({ pool, index }: { pool: PancakeSwapPool; index: number }) {
+/**
+ * One pool card (read-only market intelligence). TVL is computed from on-chain
+ * reserves × official USD prices; 24h volume is honestly unavailable on-chain
+ * and renders as "—" (never a fabricated 0); APR/APY is never fabricated.
+ */
+function PoolCard({ pool, index }: { pool: PancakeSwapIntelligencePool; index: number }) {
   return (
     <li className="rounded-lg border border-border/60 bg-background/40 p-3.5">
       <div className="flex min-w-0 items-center justify-between gap-2">
@@ -243,61 +254,75 @@ function PoolCard({ pool, index }: { pool: PancakeSwapPool; index: number }) {
       </div>
       <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
         <div className="min-w-0">
-          <span className="text-muted-foreground">TVL</span>
+          <span className="text-muted-foreground">TVL (est.)</span>
           <p
             className="mt-0.5 truncate font-medium tabular-nums text-foreground"
-            title={String(pool.tvlUsd)}
+            title={pool.tvlUsd !== null ? `$${pool.tvlUsd.toFixed(2)}` : undefined}
           >
             {formatUsd(pool.tvlUsd)}
           </p>
         </div>
         <div className="min-w-0">
-          {/* honest label: cumulative V2 volume, NOT 24h */}
-          <span className="text-muted-foreground">{PANCAKESWAP_CUMULATIVE_VOLUME_LABEL}</span>
+          {/* honest label: on-chain reserves provide NO volume — shown as "—" */}
+          <span className="text-muted-foreground">{PANCAKESWAP_VOLUME_LABEL}</span>
+          <p className="mt-0.5 truncate font-medium tabular-nums text-foreground">—</p>
+        </div>
+        <div className="min-w-0">
+          <span className="text-muted-foreground">1 {pool.token0Symbol} (USD)</span>
+          <p className="mt-0.5 truncate font-medium tabular-nums text-foreground">
+            {formatUsd(pool.token0PriceUsd)}
+          </p>
+        </div>
+        <div className="min-w-0">
+          <span className="text-muted-foreground">1 {pool.token1Symbol} (USD)</span>
+          <p className="mt-0.5 truncate font-medium tabular-nums text-foreground">
+            {formatUsd(pool.token1PriceUsd)}
+          </p>
+        </div>
+        <div className="min-w-0">
+          <span className="text-muted-foreground">{PANCAKESWAP_FEE_TIER_LABEL}</span>
+          <p className="mt-0.5 truncate font-medium tabular-nums text-foreground">
+            {formatFeeTier(pool.feeTier)}
+          </p>
+        </div>
+        <div className="min-w-0">
+          <span className="text-muted-foreground">Reserves</span>
           <p
             className="mt-0.5 truncate font-medium tabular-nums text-foreground"
-            title={String(pool.volumeUsd)}
+            title={`${pool.token0Symbol}: ${formatCount(pool.reserve0)} · ${pool.token1Symbol}: ${formatCount(pool.reserve1)}`}
           >
-            {formatUsd(pool.volumeUsd)}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <span className="text-muted-foreground">1 {pool.token0Symbol}</span>
-          <p className="mt-0.5 truncate font-medium tabular-nums text-foreground">
-            {formatCount(pool.token0Price)} {pool.token1Symbol}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <span className="text-muted-foreground">Swaps (cum.)</span>
-          <p className="mt-0.5 truncate font-medium tabular-nums text-foreground">
-            {formatCount(pool.totalTransactions)}
+            {formatCount(pool.reserve0)} {pool.token0Symbol} / {formatCount(pool.reserve1)}{" "}
+            {pool.token1Symbol}
           </p>
         </div>
       </div>
-      {/* No APR/APY is fabricated — the V2 subgraph does not provide them. */}
-      <p className="mt-2 text-[10px] text-muted-foreground/80">{PANCAKESWAP_APR_NOTE}</p>
+      {/* No APR/APY is fabricated — on-chain data provides neither. */}
+      <p className="mt-2 text-[10px] text-muted-foreground/80">
+        {PANCAKESWAP_APR_NOTE} · {PANCAKESWAP_VOLUME_NOTE}
+      </p>
     </li>
   );
 }
 
 /**
- * PancakeSwap Pool Intelligence block. `data` is a discriminated server result;
+ * PancakeSwap Market Intelligence block. `data` is a discriminated server result;
  * every non-ready path renders an honest empty/error state (never a fake row).
+ * The read-only disclaimer and the sample scope are mandatory copy.
  */
-function PancakeSwapPoolSection({ data }: { data: PancakeSwapPoolsData }) {
+function PancakeSwapPoolSection({ data }: { data: PancakeSwapIntelligenceData }) {
   const pools = displayPools(data, 5);
 
   return (
     <Section
       id="pancakeswap-pools"
-      title="PancakeSwap Pool Intelligence"
+      title={PANCAKESWAP_SECTION_TITLE}
       hint={
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
           <Droplets className="h-3.5 w-3.5" aria-hidden="true" />
           {PANCAKESWAP_SOURCE_LABEL}
         </span>
       }
-      description="Read-only market and liquidity data for PancakeSwap pools (source: PancakeSwap V2 subgraph, BSC mainnet). Independent of 8004scan reputation and TermiX AACP — never combined. Shown separately; this is market data, not the agent's own performance."
+      description={PANCAKESWAP_SECTION_DESCRIPTION}
     >
       {isPancakeSwapReady(data) ? (
         <>
@@ -307,8 +332,9 @@ function PancakeSwapPoolSection({ data }: { data: PancakeSwapPoolsData }) {
             ))}
           </ul>
           <p className="mt-3 text-[11px] text-muted-foreground">
-            Source: PancakeSwap V2 subgraph · BSC mainnet (chain 56) · read-only.
+            {formatSampleScope(data.sample)}
           </p>
+          <p className="mt-3 text-[11px] text-muted-foreground/80">{PANCAKESWAP_READ_ONLY_DISCLAIMER}</p>
         </>
       ) : (
         <div
@@ -471,7 +497,7 @@ export function AgentDetailView({
   /** Server-fetched TermiX reputation result (undefined = no identity attempted). */
   termix?: TermixReputationResult;
   /** Server-fetched PancakeSwap pools result (readonly market/liquidity). */
-  pancakeswap: PancakeSwapPoolsData;
+  pancakeswap: PancakeSwapIntelligenceData;
 }) {
   const router = useRouter();
   // Live registry record name, or a Title Case display title derived only from
