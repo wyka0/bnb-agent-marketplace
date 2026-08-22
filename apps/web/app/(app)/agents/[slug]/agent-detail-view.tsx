@@ -65,7 +65,6 @@ import {
   SectionDivider,
   // marketplace badges (state-driven)
   MarketplaceVerificationBadge,
-  MarketplaceRiskBadge,
   RegistryBadge,
   BuilderBadge,
   ReputationBadge,
@@ -335,9 +334,7 @@ function PancakeSwapPoolSection({ data }: { data: PancakeSwapIntelligenceData })
               <PoolCard key={p.poolId} pool={p} index={i} />
             ))}
           </ul>
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            {formatSampleScope(data.sample)}
-          </p>
+          <p className="mt-3 text-[11px] text-muted-foreground">{formatSampleScope(data.sample)}</p>
         </>
       ) : (
         <div
@@ -350,7 +347,9 @@ function PancakeSwapPoolSection({ data }: { data: PancakeSwapIntelligenceData })
           <p className="max-w-md text-sm text-muted-foreground">{pancakeSwapFailureCopy(data)}</p>
         </div>
       )}
-      <p className="mt-3 text-[11px] text-muted-foreground/80">{PANCAKESWAP_READ_ONLY_DISCLAIMER}</p>
+      <p className="mt-3 text-[11px] text-muted-foreground/80">
+        {PANCAKESWAP_READ_ONLY_DISCLAIMER}
+      </p>
     </Section>
   );
 }
@@ -568,7 +567,7 @@ export function AgentDetailView({
     >
       <MarketplaceVerificationBadge state={agent ? agent.verification : "pending"} />
       <BuilderBadge state="unknown-builder" />
-      <MarketplaceRiskBadge state="low" label="Risk —" withIcon />
+      <Pending text="Risk pending" />
       <RegistryBadge state={agent ? "synced" : "waiting"} />
       <ReputationBadge state="unknown" />
       <StatusBadge state="coming-soon" />
@@ -1075,7 +1074,7 @@ export function AgentDetailView({
           <Section
             id="performance"
             title="Performance"
-            description="Live operating metrics. Each shows pending until the agent reports through the ERC-8004 Registry — no placeholder numbers."
+            description="Operating metrics are not available yet. Each shows pending until an authoritative performance source is connected — no placeholder numbers."
           >
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
               {PERFORMANCE_METRICS.map((m) => (

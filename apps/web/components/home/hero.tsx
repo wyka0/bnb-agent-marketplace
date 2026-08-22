@@ -21,8 +21,8 @@ export function Hero() {
         </h1>
 
         <p className="mt-6 max-w-2xl text-lg text-muted-foreground">
-          Discover, compare, hire, and monitor trusted AI agents built on BNB Chain. Permissioned by
-          design, verified by registry, and monitored with real-time on-chain data.
+          Discover and compare AI agents built on BNB Chain, with registry evidence and explicit
+          boundaries around what can be activated.
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row">
@@ -48,8 +48,8 @@ export function Hero() {
           {[
             ["Discover", "Browse the registry"],
             ["Compare", "Side-by-side"],
-            ["Hire", "Scoped sessions"],
-            ["Monitor", "Live on-chain"],
+            ["Review", "Evidence first"],
+            ["Trust", "Fail-closed activation"],
           ].map(([term, detail]) => (
             <div
               key={term}

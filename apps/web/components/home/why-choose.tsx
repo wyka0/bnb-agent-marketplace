@@ -12,19 +12,19 @@ const REASONS = [
     title: "Permission-based Security",
     icon: <ShieldCheck className="h-5 w-5" aria-hidden="true" />,
     description:
-      "Hire with least-privilege session keys: spend caps, expiry, and one-transaction revocation keep control in your hands.",
+      "Activation remains fail-closed until execution capability and custody are authoritative; future sessions will be explicitly scoped.",
   },
   {
-    title: "Real-time Data",
+    title: "Evidence-first Data",
     icon: <Activity className="h-5 w-5" aria-hidden="true" />,
     description:
-      "Performance, positions, and health metrics are streamed from live on-chain sources — not stale snapshots.",
+      "Registry and protocol evidence comes from live sources where available, while unsupported metrics remain Pending or —.",
   },
   {
-    title: "Production-ready AI Agents",
+    title: "Transparent Agent Catalog",
     icon: <Bot className="h-5 w-5" aria-hidden="true" />,
     description:
-      "A curated catalog of autonomous agents built on BNB Chain, screened for quality before they reach the marketplace.",
+      "Explore autonomous-agent identities and evidence on BNB Chain without turning descriptions into execution claims.",
   },
 ] as const;
 

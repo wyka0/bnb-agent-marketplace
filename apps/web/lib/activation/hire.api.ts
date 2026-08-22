@@ -26,6 +26,17 @@ export type HireApiDeps = {
     identity: AuthenticatedIdentity;
     agent: Scan8004Agent;
   }): Promise<PublicSessionView>;
+  /**
+   * X.80 — optional ERC-8183 job-funded session gate. When supplied (production
+   * route), it enforces the verified-funded-job precondition before session
+   * creation. When absent (legacy/test harness), the historical behavior is
+   * preserved. Implemented by `evaluateSessionGate`; fails closed.
+   */
+  evaluateActivationGate?(input: {
+    identity: AuthenticatedIdentity;
+    agent: Scan8004Agent;
+    consentDigest: string;
+  }): { allowed: boolean; reason: string; state: string };
   mapError(error: unknown): { status: number; message: string };
 };
 
@@ -90,7 +101,10 @@ export async function hireActivationApi(input: {
   if (input.identity === null) {
     return {
       status: 401,
-      body: { ok: false, error: { code: "authentication-required", message: "Authentication required." } },
+      body: {
+        ok: false,
+        error: { code: "authentication-required", message: "Authentication required." },
+      },
       headers: NO_STORE,
     };
   }
@@ -162,11 +176,34 @@ export async function hireActivationApi(input: {
         ok: false,
         error: {
           code: "consent-mismatch",
-          message: "The activation review changed. Review the current permissions before confirming.",
+          message:
+            "The activation review changed. Review the current permissions before confirming.",
         },
       },
       headers: NO_STORE,
     };
+  }
+
+  if (input.deps.evaluateActivationGate) {
+    const gate = input.deps.evaluateActivationGate({
+      identity: input.identity,
+      agent: record,
+      consentDigest: body.consentDigest,
+    });
+    if (!gate.allowed) {
+      return {
+        status: 409,
+        body: {
+          ok: false,
+          error: {
+            code: "activation-unavailable",
+            message: `Activation unavailable — ${gate.reason}`,
+          },
+          data: { agent: safeAgent(record), classifier: outcome.classifier },
+        },
+        headers: NO_STORE,
+      };
+    }
   }
 
   try {
@@ -182,7 +219,10 @@ export async function hireActivationApi(input: {
       status: mapped.status,
       body: {
         ok: false,
-        error: { code: mapped.status === 409 ? "already-active" : "activation-unavailable", message: mapped.message },
+        error: {
+          code: mapped.status === 409 ? "already-active" : "activation-unavailable",
+          message: mapped.message,
+        },
       },
       headers: NO_STORE,
     };

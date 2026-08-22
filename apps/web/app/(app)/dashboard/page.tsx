@@ -39,7 +39,8 @@ export default function DashboardPage() {
         <CardHeader>
           <CardTitle>Your agents</CardTitle>
           <CardDescription>
-            Agents you have hired will appear here with live performance data.
+            Agents with a verified activation will appear here with their real session and
+            performance data.
           </CardDescription>
         </CardHeader>
         <CardContent>

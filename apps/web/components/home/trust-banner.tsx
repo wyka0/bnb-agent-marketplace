@@ -10,19 +10,20 @@ const TRUST_ITEMS = [
   {
     icon: ShieldCheck,
     title: "Permission-first security",
-    description: "Session keys with spend caps, expiry, and one-transaction revocation by default.",
+    description:
+      "Activation is gated until authoritative execution capability and custody are verified.",
   },
   {
     icon: Lock,
-    title: "Least-privilege by design",
+    title: "Least-privilege boundary",
     description:
-      "No agent ever gets unlimited wallet access — only the surface you approve at hire time.",
+      "No unsupported agent receives wallet access. Any future session must be explicitly scoped.",
   },
   {
     icon: Satellite,
-    title: "Live on-chain data",
+    title: "Evidence from live sources",
     description:
-      "Performance, positions, and health streamed from BNB Chain — never a stale screenshot.",
+      "Registry, category, and protocol evidence is labeled by source; unavailable values stay visible as unavailable.",
   },
 ] as const;
 
