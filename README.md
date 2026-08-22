@@ -1,34 +1,152 @@
 # BNB Agent Studio Marketplace
 
-The operating system for AI agents on BNB Chain: discover, compare, hire,
-permission, and monitor AI agents across rebalancing, grid trading, yield
-optimization, and health-factor monitoring.
+A production marketplace for discovering, understanding, comparing, and safely activating AI agents on BNB Chain.
 
-> **Status: live foundation.** Marketplace UI (discovery, agent details,
-> compare, leaderboards, categories) is implemented, plus read-only integration
-> layers: 8004scan registry identity (keyless-safe), ALTANA wallet/x402/ERC-8183
-> adapters (execution gated on external credentials), TermiX AACP read-only
-> reputation, and PancakeSwap read-only pool intelligence. Live registry data
-> and any payment/execution flows require external keys/credentials (see
-> `docs/`). The database schema remains intentionally empty.
+Discover agents by category, inspect source-attributed data, compare candidates side by side, and review activation requirements without fabricated execution claims.
+
+**Live:** https://bnb-agent-marketplace-web.vercel.app
+
+**Release:** `46fcdc6a0ddbb520619c2e0c86ab0de4ab0366ed`
+
+Status: Live production release. The marketplace is production-deployed and provides discovery, agent details, comparison, category navigation, trust/provenance information, and an honest fail-closed activation boundary.
 
 ---
 
-## Overview
+## Four First-Class Agent Categories
 
-- **Web app:** Next.js 15 (App Router) + React 19 + Tailwind CSS
-- **Monorepo:** Turborepo + pnpm workspaces
-- **Client state:** TanStack Query (server cache) + Zustand (UI state)
-- **Data layer:** Prisma + PostgreSQL (schema intentionally empty for now)
-- **Backend processes:** standalone `worker` app (placeholder)
-- **Integrations:** 8004scan (server-only, keyless-safe), ALTANA
-  (wallet/x402/ERC-8183 to honest boundaries), TermiX AACP (read-only
-  reputation), PancakeSwap (read-only pool intelligence), BNB Agent Studio
-  (placeholder)
-- **Quality:** ESLint 9, Prettier, Husky, lint-staged, GitHub Actions CI
-- **Runtime:** Docker + Docker Compose (Postgres + Redis for local dev)
+### Rebalancing
+
+Manages LP ranges and resets positions automatically.
+
+### Grid Trading
+
+Places and manages automated grid orders.
+
+### Yield Optimisation
+
+Routes liquidity toward available yield opportunities.
+
+### Health Factor Monitoring
+
+Helps protect lending positions from liquidation risk.
+
+Each category has a dedicated dashboard, leaderboards, and discovery. Agents are surfaced by category through real registry data and BSC discovery without claiming execution where authoritative evidence is unavailable.
+
+## Marketplace Experience
+
+### Discover
+
+Browse agents across all four required categories with search, facets, and category dashboards.
+
+### Understand
+
+Inspect agent identity, source attribution, available evidence, and relevant marketplace information on dedicated agent pages.
+
+### Compare
+
+Compare agents side by side with explicit unavailable/pending states instead of fabricated metrics.
+
+### Review Activation
+
+Review whether an agent is currently eligible for activation. The UI shows the exact requirements and the honest boundary — successful production hiring is not currently available.
+
+## Trust & Data Quality
+
+The marketplace does not fabricate:
+
+- price
+- APY
+- TVL
+- volume
+- risk
+- performance
+- execution status
+- funded jobs
+- sessions
+- transactions
+- execution capabilities
+
+When authoritative data is unavailable, the UI explicitly shows pending/unavailable states.
+
+- Identity provenance via 8004scan / ERC-8004 where available (server-side, keyless-safe, `8004SCAN_API_KEY` / `E8004SCAN_API_KEY` never exposed to the browser).
+- Server-side integration boundaries for all external providers.
+- Fail-closed activation: no agent is shown as ACTIVE without authoritative evidence.
+- Source attribution on every data surface (registry, market intelligence, reputation).
+
+Registry data is surfaced when credentials/configuration are available; otherwise honest pending/offline states are shown — no values are invented.
+
+## Activation & Safety
+
+Real activation is intentionally fail-closed.
+
+The marketplace does not represent an agent as ACTIVE unless the required authoritative execution and authorization evidence exists.
+
+Current production activation is unavailable because the required authoritative execution-capability and custody prerequisites are not provisioned.
+
+The marketplace therefore does NOT simulate:
+
+- ACTIVE sessions
+- funded ERC-8183 jobs
+- provider execution capability
+- transactions
+- execution results
+
+This is a deliberate trust boundary, not a simulated demo state.
+
+## BNB Agent Studio / ERC-8183
+
+The marketplace contains ERC-8183 / BNB Agent Studio integration boundaries for agent commerce and verification (wallet, x402, ERC-8183 adapters via `@altananetwork/sdk`).
+
+The current production release does not claim successful live marketplace execution where authoritative provider capability or custody prerequisites are unavailable. No completed real paid hire is claimed.
+
+## PancakeSwap Market Intelligence
+
+The marketplace includes real BSC mainnet PancakeSwap V2 read-only market intelligence.
+
+It uses on-chain reserve data and official pricing information to derive market intelligence such as pool TVL.
+
+- Chain: BSC mainnet / Chain ID 56
+- Read-only
+- No wallet signing
+- No swaps
+- No liquidity transactions
+- APR/APY are not fabricated
+- Unavailable volume is shown as unavailable
+
+No automated trading or LP management is claimed.
+
+## TermiX Evidence
+
+The repository includes an Agent Advantage experiment covering three real A/B tasks, including a security task.
+
+The experiment measures marketplace discovery/intelligence against a baseline.
+
+It does NOT claim that those tasks were completed through a real paid marketplace hire. Production marketplace Hire remains fail-closed. The existing report is evidence of discovery capability, not proof of completed marketplace hiring.
+
+## Security
+
+Verified production protections:
+
+- CSP with nonce / `strict-dynamic`
+- HSTS (`max-age=63072000; includeSubDomains`)
+- `X-Content-Type-Options: nosniff`
+- Frame denial (`X-Frame-Options: DENY`, `frame-ancestors 'none'`)
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy` (camera, geolocation, microphone, payment, usb disabled)
+- Server-side credential handling (no `NEXT_PUBLIC_` secrets)
+- Fail-closed activation (no bypass, no fabricated sessions)
 
 ## Architecture
+
+The monorepo separates the Next.js application from reusable workspace packages and integration adapters.
+
+- `apps/web` — Next.js 15 marketplace (App Router)
+- `packages/ui` — design-system components
+- `packages/config` — env validation, constants, feature flags, types
+- `packages/data-api` — typed HTTP client, envelope, error handling
+- `packages/integrations` — adapter implementations (altana, termix, pancakeswap, studio)
+- `prisma` — PostgreSQL schema and generated client
+- `docs` — architecture, PRD, and review evidence
 
 ```mermaid
 flowchart TB
@@ -42,14 +160,8 @@ flowchart TB
   Worker --> Tele
   Data --> Cfg
   Integ --> Cfg
-  Prisma[prisma · PostgreSQL] -.schema empty.-> Cfg
+  Prisma[prisma · PostgreSQL] --> Cfg
 ```
-
-The monorepo is layered so that **all marketplace business logic lives in
-`packages/`** and is consumed by thin `apps/`. Providers (ALTANA, TERMIX,
-PancakeSwap, Agent Studio) are behind adapter interfaces in
-`packages/integrations`, so implementations can be swapped without touching
-consumers.
 
 ## Folder Structure
 
@@ -70,17 +182,17 @@ bnb-agent-marketplace/
 │  │     │  └─ login/
 │  │     ├─ layout.tsx page.tsx loading.tsx error.tsx not-found.tsx
 │  │     └─ globals.css       # design tokens (Tailwind HSL vars)
-│  └─ worker/                 # background workloads (placeholder)
+│  └─ worker/                 # background workloads
 ├─ packages/
-│  ├─ ui/                     # design-system components (shadcn-style)
+│  ├─ ui/                     # design-system components
 │  ├─ config/                 # env validation, constants, feature flags, types
 │  ├─ telemetry/              # logger, OTel placeholder, performance monitor
 │  ├─ data-api/               # typed HTTP client, envelope, error handling
 │  └─ integrations/           # adapter implementations + verify harnesses
 │     ├─ altana/  termix/  pancakeswap/  studio/
-├─ prisma/                    # Prisma init (PostgreSQL, no models yet)
-├─ docs/                      # architecture & PRD
-├─ tests/                     # future test suites
+├─ prisma/                    # Prisma schema (PostgreSQL)
+├─ docs/                      # architecture, PRD, review evidence
+├─ tests/                     # test suites
 ├─ .github/workflows/ci.yml   # install / lint / typecheck / build / format
 └─ (Dockerfile, docker-compose.yml, eslint, prettier, husky…)
 ```
@@ -111,8 +223,7 @@ pnpm dev
 ```
 
 > The worker app also runs via `pnpm --filter @bnb-marketplace/worker dev`.
-> No `.env` file is required for the scaffold; see
-> `packages/config/src/env.ts` for the defaults it validates.
+> No `.env` file is required; see `packages/config/src/env.ts` for defaults.
 
 ## Environment
 
@@ -122,16 +233,13 @@ Copy the example environment file to a local (gitignored) env file:
 cp .env.example .env.local
 ```
 
-No variables are required to run the scaffold. For live ERC-8004
-registry data on the Leaderboards page, add your 8004scan API key:
+No variables are required to run the scaffold. For live ERC-8004 registry data, add your 8004scan API key:
 
 ```env
 8004SCAN_API_KEY=
 ```
 
-The key is read **server-side only** and is never shipped to the browser.
-Without a key, the `/leaderboards` route renders an honest
-registry-pending state instead of fabricating data.
+The key is read **server-side only** and is never shipped to the browser. Without a key, registry-dependent surfaces render honest pending/offline states.
 
 ## Development Commands
 
@@ -145,7 +253,7 @@ registry-pending state instead of fabricating data.
 | `pnpm format:check`    | Prettier check (used in CI)               |
 | `pnpm check`           | lint + typecheck + build in one shot      |
 | `pnpm prisma:generate` | Generate Prisma client                    |
-| `pnpm prisma:migrate`  | Run `prisma migrate dev` (no models yet)  |
+| `pnpm prisma:migrate`  | Run `prisma migrate dev`                  |
 | `pnpm clean`           | Remove build artifacts + node_modules     |
 
 ### Scoped commands
@@ -158,12 +266,9 @@ pnpm --filter @bnb-marketplace/worker dev
 
 ## Docker
 
-- `docker compose up -d` — starts **PostgreSQL 16** and **Redis 7** for local
-  development.
-- `docker build -t bnbsm-web .` — builds the Next.js app image (standalone
-  output, non-root user).
-- Docker is **not required** for building or running the code; only for the
-  local datastores.
+- `docker compose up -d` — starts **PostgreSQL 16** and **Redis 7** for local development.
+- `docker build -t bnbsm-web .` — builds the Next.js app image (standalone output, non-root user).
+- Docker is **not required** for building or running the code; only for the local datastores.
 
 ## CI/CD
 
@@ -175,36 +280,63 @@ pnpm --filter @bnb-marketplace/worker dev
 4. **build** — `pnpm build`
 5. **format** — `pnpm format:check`
 
-## Code Quality
+## Current Product Status
 
-- **ESLint 9** flat config (`eslint.config.mjs`) with `typescript-eslint`
-  recommended rules.
-- **Prettier** with `.prettierrc` / `.prettierignore`.
-- **Husky + lint-staged** run on `pre-commit` (ESLint `--fix` + Prettier on
-  staged files).
-- **EditorConfig** enforces consistent indentation and line endings.
+### Production
 
-## Design System
+Live on Vercel.
 
-`packages/ui` ships reusable, unstyled-by-page primitives (Button, Card, Input,
-Badge, Avatar, Tabs, Modal, Table, Dropdown, Pagination, Skeleton, Alert,
-EmptyState, LoadingSpinner) built on Radix UI + class-variance-authority +
-tailwind-merge. Design tokens (BNB-gold accent, dark-first palette, semantic
-status colors) live in `apps/web/app/globals.css`.
+### Discovery
 
-## Roadmap
+Complete.
 
-1. **Phase 0 — Foundation** _(this repo)_
-2. **Phase 1 — Catalog & Discovery**: search, facets, compare, category
-   dashboards, leaderboards, SEO.
-3. **Phase 2 — Auth & Wallet**: wallet connect, ALTANA session keys (spend
-   caps, expiry, revocation).
-4. **Phase 3 — Hiring & Monitoring**: hire flow, live dashboards, alerts.
-5. **Phase 4 — Partners**: TERMIX advantage reports, PancakeSwap LP/yield
-   ranking.
-6. **Phase 5 — Polish**: a11y, perf gates, E2E, demo seeds.
+### Agent Details
 
-See `docs/` for the full PRD and architecture decisions.
+Complete.
+
+### Comparison
+
+Complete.
+
+### Four Category Experience
+
+Complete.
+
+### Trust / Data Provenance
+
+Complete.
+
+### PancakeSwap Intelligence
+
+Read-only production capability.
+
+### TermiX Evidence
+
+Evidence package available with explicit limitations.
+
+### Real Activation
+
+Fail-closed pending authoritative execution-capability and custody prerequisites.
+
+## Release
+
+Production release:
+
+`46fcdc6a0ddbb520619c2e0c86ab0de4ab0366ed`
+
+Live:
+
+https://bnb-agent-marketplace-web.vercel.app
+
+## Recommended Judge Flow
+
+1. Open the live marketplace.
+2. Browse the four categories.
+3. Open an agent.
+4. Inspect source-attributed information.
+5. Compare agents.
+6. Review the activation state.
+7. Observe that unsupported activation is explicitly unavailable rather than simulated.
 
 ## License
 
