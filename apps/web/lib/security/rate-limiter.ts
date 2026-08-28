@@ -33,15 +33,77 @@ export type RateLimitPolicy = {
  * read paths so normal UI usage (polling the permissions page) never breaks.
  */
 export const RATE_LIMIT_POLICIES = [
-  { route: "auth.nonce", limitPerWindow: 12, windowSeconds: 600, scope: "wallet", rationale: "mirrors + front-runs the DB-backed SIWE challenge limits" },
-  { route: "auth.verify", limitPerWindow: 120, windowSeconds: 60, scope: "global", rationale: "signature recovery is computationally expensive" },
-  { route: "auth.logout", limitPerWindow: 30, windowSeconds: 60, scope: "identity", rationale: "session revocation churn bound" },
-  { route: "auth.me", limitPerWindow: 120, windowSeconds: 60, scope: "identity", rationale: "authenticated identity polling" },
-  { route: "altana.session.read", limitPerWindow: 60, windowSeconds: 60, scope: "identity", rationale: "each read performs live KeyStore RPC" },
-  { route: "altana.session.revoke", limitPerWindow: 10, windowSeconds: 60, scope: "identity", rationale: "retries re-broadcast a relay transaction" },
-  { route: "activation.hire", limitPerWindow: 10, windowSeconds: 60, scope: "identity", rationale: "authenticated registry resolution and session creation boundary" },
-  { route: "activation.aave.preview", limitPerWindow: 10, windowSeconds: 60, scope: "global", rationale: "unauthenticated; x4 upstream amplification" },
-  { route: "agents.bnb.testnet.risk", limitPerWindow: 30, windowSeconds: 60, scope: "global", rationale: "unauthenticated public RPC oracle" },
+  {
+    route: "auth.nonce",
+    limitPerWindow: 12,
+    windowSeconds: 600,
+    scope: "wallet",
+    rationale: "mirrors + front-runs the DB-backed SIWE challenge limits",
+  },
+  {
+    route: "auth.verify",
+    limitPerWindow: 120,
+    windowSeconds: 60,
+    scope: "global",
+    rationale: "signature recovery is computationally expensive",
+  },
+  {
+    route: "auth.logout",
+    limitPerWindow: 30,
+    windowSeconds: 60,
+    scope: "identity",
+    rationale: "session revocation churn bound",
+  },
+  {
+    route: "auth.me",
+    limitPerWindow: 120,
+    windowSeconds: 60,
+    scope: "identity",
+    rationale: "authenticated identity polling",
+  },
+  {
+    route: "altana.session.read",
+    limitPerWindow: 60,
+    windowSeconds: 60,
+    scope: "identity",
+    rationale: "each read performs live KeyStore RPC",
+  },
+  {
+    route: "altana.session.revoke",
+    limitPerWindow: 10,
+    windowSeconds: 60,
+    scope: "identity",
+    rationale: "retries re-broadcast a relay transaction",
+  },
+  {
+    route: "activation.hire",
+    limitPerWindow: 10,
+    windowSeconds: 60,
+    scope: "identity",
+    rationale: "authenticated registry resolution and session creation boundary",
+  },
+  {
+    route: "activation.main-track-hire",
+    limitPerWindow: 10,
+    windowSeconds: 60,
+    scope: "identity",
+    rationale:
+      "authenticated Main Track hire: live seller negotiation, quote verification, receipt/verify reads",
+  },
+  {
+    route: "activation.aave.preview",
+    limitPerWindow: 10,
+    windowSeconds: 60,
+    scope: "global",
+    rationale: "unauthenticated; x4 upstream amplification",
+  },
+  {
+    route: "agents.bnb.testnet.risk",
+    limitPerWindow: 30,
+    windowSeconds: 60,
+    scope: "global",
+    rationale: "unauthenticated public RPC oracle",
+  },
 ] as const satisfies readonly RateLimitPolicy[];
 
 export type RateLimitOutcome = {
@@ -85,13 +147,28 @@ export async function evaluateRateLimit(
   try {
     count = await provider.incr(key, windowKey, policy.windowSeconds);
   } catch {
-    return { allowed: false, remaining: 0, retryAfterMs: policy.windowSeconds * 1000, providerError: true };
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterMs: policy.windowSeconds * 1000,
+      providerError: true,
+    };
   }
   const windowEnd = (Number(windowKey) + 1) * policy.windowSeconds * 1000;
   if (count <= policy.limitPerWindow) {
-    return { allowed: true, remaining: policy.limitPerWindow - count, retryAfterMs: 0, providerError: false };
+    return {
+      allowed: true,
+      remaining: policy.limitPerWindow - count,
+      retryAfterMs: 0,
+      providerError: false,
+    };
   }
-  return { allowed: false, remaining: 0, retryAfterMs: Math.max(1, windowEnd - now.getTime()), providerError: false };
+  return {
+    allowed: false,
+    remaining: 0,
+    retryAfterMs: Math.max(1, windowEnd - now.getTime()),
+    providerError: false,
+  };
 }
 
 /**
@@ -113,7 +190,9 @@ export function globalKeyOf(route: string): string {
  * per-instance safety net (and the honest default while PostgreSQL/Redis are
  * provisioned). It is NEVER the claimed production-distributed limiter.
  */
-export function createMemoryRateLimitProvider(): RateLimitProvider & { counters: Map<string, number> } {
+export function createMemoryRateLimitProvider(): RateLimitProvider & {
+  counters: Map<string, number>;
+} {
   const counters = new Map<string, number>();
   return {
     counters,
