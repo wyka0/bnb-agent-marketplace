@@ -22,7 +22,7 @@ import { listAgents } from "../client.ts";
 import { pickAgentBySlug } from "../marketplace.ts";
 import { normalizeAgents } from "../normalize.ts";
 import { classifyAgentText } from "./classifier.ts";
-import { assembleBscDiscovery, BSC_DISCOVERY_CHAIN_ID } from "./service.ts";
+import { assembleBscDiscovery, BSC_DISCOVERY_CHAIN_IDS } from "./service.ts";
 import { DISCOVERY_CATEGORIES } from "./classifier.ts";
 
 const CANDIDATE_NAMES = [
@@ -33,7 +33,7 @@ const CANDIDATE_NAMES = [
 ];
 
 console.log(
-  `P9 audit: bounded discovery pass (${DISCOVERY_CATEGORIES.length} keyword requests, chainId=${BSC_DISCOVERY_CHAIN_ID})`
+  `P9 audit: bounded discovery pass (${DISCOVERY_CATEGORIES.length} keyword requests, BNB chains=${BSC_DISCOVERY_CHAIN_IDS.join("|")})`
 );
 
 const inputs = await Promise.all(
@@ -42,7 +42,7 @@ const inputs = await Promise.all(
     result: await listAgents({
       page: 1,
       limit: 100,
-      chainId: BSC_DISCOVERY_CHAIN_ID,
+      chainId: BSC_DISCOVERY_CHAIN_IDS[0],
       isTestnet: false,
       search: searchKeyword,
     }),
@@ -82,8 +82,6 @@ for (const name of CANDIDATE_NAMES) {
     search: id,
     page: 1,
     limit: 20,
-    chainId: BSC_DISCOVERY_CHAIN_ID,
-    isTestnet: false,
   });
 
   if (!lookup.ok) {

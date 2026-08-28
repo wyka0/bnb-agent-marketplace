@@ -1,0 +1,13 @@
+node_modules
+.agent-data
+.env
+.env.*
+!.env.example
+*.log
+pnpm-debug.log*
+x1*.mjs
+x13*.mjs
+x14*.mjs
+x15*.mjs
+*.tsbuildinfo
+.git

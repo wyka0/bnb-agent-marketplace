@@ -168,7 +168,11 @@ console.log("marketplace verify: identity lookup (exact key equality)");
     pickAgentBySlug(agents, "56:0xCfFacE0003:1002") === undefined
   );
   check(
-    "case differs never matches (ids are exact)",
+    "same id, different casing matches (X.154 case-insensitive identity)",
+    pickAgentBySlug(agents, "56:0XcFFaCE0003:1001")?.slug === "56:0xCfFacE0003:1001"
+  );
+  check(
+    "genuinely different id (address differs beyond casing) never matches",
     pickAgentBySlug(agents, "56:0XcFEfAcE0003:1001") === undefined
   );
 }
@@ -199,7 +203,10 @@ console.log("marketplace verify: card mapping (toAgentCardData)");
     card.protocols.length === 2 && card.protocols[0].label === "A2A"
   );
   check("registryStatus live", card.registryStatus === "live");
-  check("real registry row is unavailable without a verified actionable capability", card.hireable === false);
+  check(
+    "real registry row is unavailable without a verified actionable capability",
+    card.hireable === false
+  );
   check(
     "reputation score/reviews mapped",
     card.reputation?.score === 4.6 && card.reputation?.reviews === 42

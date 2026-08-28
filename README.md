@@ -6,7 +6,7 @@ Discover agents by category, inspect source-attributed data, compare candidates 
 
 **Live:** https://bnb-agent-marketplace-web.vercel.app
 
-**Release:** `46fcdc6a0ddbb520619c2e0c86ab0de4ab0366ed`
+**Release:** `850454da8f49f48285c31b8322215e55d37967a0` (working tree; final submission)
 
 Status: Live production release. The marketplace is production-deployed and provides discovery, agent details, comparison, category navigation, trust/provenance information, and an honest fail-closed activation boundary.
 
@@ -48,7 +48,7 @@ Compare agents side by side with explicit unavailable/pending states instead of 
 
 ### Review Activation
 
-Review whether an agent is currently eligible for activation. The UI shows the exact requirements and the honest boundary — successful production hiring is not currently available.
+Review whether an agent is currently eligible for activation. For Main Track commercial hire (Model B), the flow is **implemented and live**: the marketplace dynamically negotiates with real discovered ERC-8183 sellers (e.g. **Agent 2005 — Canned Range Keeper**), verifies the provider signature, and builds a browser-wallet Hire plan from the real quote. A real funded hire was attempted but the first transaction is currently blocked by a documented BSC testnet RPC broadcast issue (see X.157/X.158); no successful production funded hire is claimed.
 
 ## Trust & Data Quality
 
@@ -95,9 +95,21 @@ This is a deliberate trust boundary, not a simulated demo state.
 
 ## BNB Agent Studio / ERC-8183
 
-The marketplace contains ERC-8183 / BNB Agent Studio integration boundaries for agent commerce and verification (wallet, x402, ERC-8183 adapters via `@altananetwork/sdk`).
+The marketplace includes ERC-8004 / ERC-8183 / BNB Agent Studio integration: real registry discovery (8004scan), on-chain agent identity + endpoints, live seller negotiation, provider-signature verification (official SDK), and a browser-wallet ERC-8183 commercial hire path.
 
-The current production release does not claim successful live marketplace execution where authoritative provider capability or custody prerequisites are unavailable. No completed real paid hire is claimed.
+**Live discovered seller example — Agent 2005 "Canned Range Keeper"** (chain 97, owner `0x0eAc2F4d…`): its registered endpoint `https://range-keeper.103-195-188-198.sslip.io/erc8183` is reachable; `POST /negotiate` returns a fresh quote (price `0.001 U`, official commerce + $U, chain 97) whose `provider_sig` verifies with the official SDK to the registered owner. The marketplace Hire UI surfaces it with the real quote (provider, price, expiry, network). Agent 1906 (our own seller) has a **dead endpoint** and is not claimed as live.
+
+The current production release does not claim a successfully completed funded production hire: a real attempt (X.157) was blocked at the first broadcast by a documented BSC testnet RPC issue (X.148-class), and the project fails closed honestly rather than fabricating success.
+
+### Main Track Hire (Model B — browser-wallet commercial hire)
+
+The Main Track Hire path (`model-b-v2-commercial-agreement`) is a real, deployed ERC-8183 commercial hire flow:
+
+- USER → Marketplace → **live discovered seller** (e.g. Agent 2005) → live `/negotiate` quote → official provider-signature verification → explicit confirmation → user's EIP-1193 wallet → ERC-8183 sequence (`createJob` → `registerJob` → `setBudget` → `approve` → `fund`) → marketplace-owned receipt verification → independent on-chain verification → `funded-commercial-hire`.
+- The browser wallet owns nonce, gas, signing and submission (`eth_sendTransaction`); the marketplace never receives a private key, never signs, and never calls `eth_sendRawTransaction` for user transactions.
+- FUNDED is commercial escrow — it is never shown as ACTIVE/RUNNING/EXECUTING/COMPLETED.
+- Every transaction target is checked against the pinned chain-97 ERC-8183 addresses (policy `0xd6a42175…`); historical job IDs are never reused; the provider, price, expiry and terms come from the live quote (never hardcoded).
+- The server route (`/api/activation/main-track-hire`) exposes `prepare` / `receipt` / `verify` as read-only; the user's browser wallet is the only signer/broadcaster.
 
 ## PancakeSwap Market Intelligence
 
@@ -318,11 +330,15 @@ Evidence package available with explicit limitations.
 
 Fail-closed pending authoritative execution-capability and custody prerequisites.
 
+### Main Track Hire
+
+Dynamic live-seller Hire is implemented and deployed (Model B). A real funded hire attempt (X.157) was blocked at the first broadcast by a documented BSC testnet RPC issue; no successful funded hire is claimed.
+
 ## Release
 
-Production release:
+Production release (working tree):
 
-`46fcdc6a0ddbb520619c2e0c86ab0de4ab0366ed`
+`850454da8f49f48285c31b8322215e55d37967a0`
 
 Live:
 
@@ -331,12 +347,23 @@ https://bnb-agent-marketplace-web.vercel.app
 ## Recommended Judge Flow
 
 1. Open the live marketplace.
-2. Browse the four categories.
-3. Open an agent.
-4. Inspect source-attributed information.
+2. Browse the four categories (Rebalancing, Grid Trading, Yield Optimisation, Health Factor Monitoring).
+3. Open an agent — e.g. **Agent 2005 — Canned Range Keeper** (chain 97).
+4. Inspect source-attributed information (registry, TermiX, PancakeSwap).
 5. Compare agents.
 6. Review the activation state.
-7. Observe that unsupported activation is explicitly unavailable rather than simulated.
+7. Click **Hire** — see the dynamically negotiated quote (provider, price, expiry, network) and the confirmation review; connect your wallet to see the transaction boundary. Observe that the flow fails closed honestly (no fabricated ACTIVE).
+
+## Testing
+
+- `pnpm --filter @bnb-marketplace/web typecheck` / `lint` / `build`
+- `pnpm --filter @bnb-marketplace/integrations typecheck` / `lint` / `build`
+- Main Track Hire harness: `pnpm --dir apps/web run activation:main-track-user-hire:verify`
+- Main Track wiring: `pnpm --dir apps/web run activation:main-track:verify`
+- Security: `pnpm --dir apps/web run security:x49:verify`
+- Discovery: `pnpm --dir apps/web run marketplace:verify` and `discovery:verify`
+- ERC-8183: `pnpm --dir packages/integrations exec node dist/altana/erc8183.verify.js`
+- These are all read-only/no-transaction harnesses.
 
 ## License
 

@@ -104,7 +104,9 @@ export interface GetMarketplaceAgentsOptions {
 
 /**
  * Fetch the first page of live agents for the Marketplace. Single bounded
- * request — never a loop over the registry. Newest-first (real `created_at`).
+ * read per BNB chain (56 mainnet + 97 testnet, merged) — never a loop over
+ * the registry. Newest-first (real `created_at`). X.154: BSC testnet agents
+ * are surfaced so the marketplace supports the hackathon's chain-97 seller.
  */
 export async function getMarketplaceAgents(
   options: GetMarketplaceAgentsOptions = {}
@@ -115,15 +117,54 @@ export async function getMarketplaceAgents(
   if (!has8004ScanApiKey()) {
     return { state: "missing-key", ...EMPTY };
   }
-  const result = await listAgents({
-    page,
-    limit,
-    isTestnet: false,
-    sortBy: "created_at",
-    sortOrder: "desc",
-    search: query || undefined,
-  });
-  return toMarketplaceData(result);
+  const [mainnet, bscTestnet] = await Promise.all([
+    listAgents({
+      page,
+      limit,
+      isTestnet: false,
+      sortBy: "created_at",
+      sortOrder: "desc",
+      search: query || undefined,
+    }),
+    listAgents({
+      page,
+      limit,
+      chainId: 97,
+      isTestnet: true,
+      sortBy: "created_at",
+      sortOrder: "desc",
+      search: query || undefined,
+    }),
+  ]);
+  // Merge the two BNB-chain reads into one result; a single failing read
+  // degrades the whole state honestly (never partial-fabricated rows).
+  const okResults = [mainnet, bscTestnet].filter((r) => r.ok) as Array<{
+    ok: true;
+    data: import("./types").Scan8004Agent[];
+    meta: import("./types").Scan8004Meta;
+  }>;
+  if (okResults.length === 0) {
+    const failed = !mainnet.ok ? mainnet : bscTestnet;
+    if (failed.ok) {
+      return { state: "error", ...EMPTY };
+    }
+    return { state: mapStatusToState(failed.status), ...EMPTY };
+  }
+  const merged: Scan8004Result<Scan8004Agent> = {
+    ok: true,
+    data: okResults.flatMap((r) => r.data),
+    meta: {
+      timestamp:
+        okResults.map((r) => r.meta.timestamp ?? null).find((t) => t !== null) ?? undefined,
+      pagination: {
+        page,
+        limit,
+        total: okResults.reduce((sum, r) => sum + (r.meta.pagination?.total ?? 0), 0),
+        hasMore: okResults.some((r) => r.meta.pagination?.hasMore === true),
+      },
+    },
+  };
+  return toMarketplaceData(merged);
 }
 
 /* ------------------------------------------------------------------ *
@@ -149,23 +190,32 @@ export type AgentLookupState =
 export type AgentLookupResult =
   { ok: true; agent: LeaderboardAgent } | { ok: false; reason: AgentLookupState };
 
-/** Exact key-equality match on the normalized registry identity (slug). */
+/**
+ * Exact key-equality match on the normalized registry identity (slug).
+ * X.154: addresses are case-insensitive on-chain, so the match is
+ * case-insensitive — a checksummed detail slug (`97:0x8004A818…:1906`) must
+ * resolve the API's lowercase `agent_id` (`97:0x8004a818…:1906`). The
+ * chain:contract:token identity is unchanged; only casing is tolerated.
+ */
 export function pickAgentBySlug(
   agents: LeaderboardAgent[],
   slug: string
 ): LeaderboardAgent | undefined {
-  return agents.find((a) => a.slug === slug);
+  const lower = slug.toLowerCase();
+  return agents.find((a) => a.slug.toLowerCase() === lower);
 }
 
 export async function getMarketplaceAgentBySlug(slug: string): Promise<AgentLookupResult> {
   if (!has8004ScanApiKey()) {
     return { ok: false, reason: "missing-key" };
   }
+  // X.154: the slug IS the registry identity (e.g. `97:0x8004…:1906`), so the
+  // exact search must NOT filter by `isTestnet` — a BSC testnet agent must
+  // resolve. The exact key-equality match below is the safety guard.
   const result = await listAgents({
     search: slug,
     page: 1,
     limit: 20,
-    isTestnet: false,
   });
   if (!result.ok) {
     return { ok: false, reason: mapStatusToState(result.status) };

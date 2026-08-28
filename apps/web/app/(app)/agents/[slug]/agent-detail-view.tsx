@@ -92,6 +92,7 @@ import { chainLabelForId } from "@/lib/eight004scan/card";
 import { AAVE_AGENT_ID } from "@/lib/activation/contract";
 import { AaveActivationPreview } from "./aave-activation-preview";
 import { HireReviewPanel } from "./hire-review-panel";
+import { MainTrackHireView } from "./main-track-hire-view";
 import { classifyAgentActivation } from "@/lib/activation/capability";
 
 /* ------------------------------------------------------------------ *
@@ -575,44 +576,47 @@ export function AgentDetailView({
   );
 
   /* ---- Right-rail blocks (reused inline on tablet/mobile) ---- */
-  const hireCard = agent ? (
-    <HireReviewPanel agent={agent} />
-  ) : (
-    <Card className="border-border/70">
-      <CardContent className="p-5">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Price
-          </span>
-          <StatusBadge state="coming-soon" size="sm" />
-        </div>
-        <div className="mt-1 flex items-baseline gap-1.5">
-          <span className="text-2xl font-bold tracking-tight text-foreground">
-            <Dash label="Pricing pending ERC-8004 Registry integration" />
-          </span>
-          <span className="text-sm text-muted-foreground">/ hire</span>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Agent data will appear automatically once the ERC-8004 Registry record is resolved.
-        </p>
+  const hireCard =
+    agent && agent.chainId === 97 && agent.ownerAddress ? (
+      <MainTrackHireView agent={agent} />
+    ) : agent ? (
+      <HireReviewPanel agent={agent} />
+    ) : (
+      <Card className="border-border/70">
+        <CardContent className="p-5">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Price
+            </span>
+            <StatusBadge state="coming-soon" size="sm" />
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-2xl font-bold tracking-tight text-foreground">
+              <Dash label="Pricing pending ERC-8004 Registry integration" />
+            </span>
+            <span className="text-sm text-muted-foreground">/ hire</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Agent data will appear automatically once the ERC-8004 Registry record is resolved.
+          </p>
 
-        <button
-          type="button"
-          disabled
-          title="Hire requires a resolved registry agent"
-          className="mt-4 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground transition-all disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          Hire
-          <span className="rounded-full bg-primary-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-            Unavailable
-          </span>
-        </button>
-        <p className="mt-2 text-center text-[11px] text-muted-foreground/80">
-          Hiring opens once the agent is live in the ERC-8004 Registry.
-        </p>
-      </CardContent>
-    </Card>
-  );
+          <button
+            type="button"
+            disabled
+            title="Hire requires a resolved registry agent"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground transition-all disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Hire
+            <span className="rounded-full bg-primary-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              Unavailable
+            </span>
+          </button>
+          <p className="mt-2 text-center text-[11px] text-muted-foreground/80">
+            Hiring opens once the agent is live in the ERC-8004 Registry.
+          </p>
+        </CardContent>
+      </Card>
+    );
 
   const builderCard = (
     <Card className="border-border/70">

@@ -46,3 +46,8 @@ next-env.d.ts
 *.tgz
 .vercel
 .env*
+services/v2-seller/.agent-data/
+services/v2-seller/x*.mjs
+services/v2-buyer/x*.mjs
+apps/web/lib/activation/x15*-*.mjs
+apps/web/lib/activation/x15*-*.ts

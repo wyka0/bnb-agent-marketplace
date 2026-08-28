@@ -176,8 +176,9 @@ const BSC_NAME_IGNORED = fixtureAgent({
     r.categories[0]?.evidence === "description"
   );
   check("includeInBscDiscovery: 56 + mainnet → true", includeInBscDiscovery(56, false) === true);
-  check("includeInBscDiscovery: 97 + testnet → false", includeInBscDiscovery(97, true) === false);
+  check("includeInBscDiscovery: 97 + testnet → true", includeInBscDiscovery(97, true) === true);
   check("includeInBscDiscovery: 1 + mainnet → false", includeInBscDiscovery(1, false) === false);
+  check("includeInBscDiscovery: 56 + testnet → false", includeInBscDiscovery(56, true) === false);
 }
 
 /* 2 — non-BSC rejection ------------------------------------------------ */

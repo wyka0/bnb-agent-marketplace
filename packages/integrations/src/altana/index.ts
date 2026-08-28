@@ -92,6 +92,10 @@ export const ALTANA_ADAPTER_NOT_IMPLEMENTED = "ALTANA adapter is not implemented
 
 export * from "./client.js";
 export * from "./erc8183.js";
+export * from "./v2/commercial-agreement.js";
+export * from "./v2/hire-adapter.js";
+export * from "./v2/main-track-hire.js";
+export * from "./v2/main-track-user-wallet.js";
 export * from "./skills.js";
 export * from "./x402.js";
 export * from "./x402.review.js";

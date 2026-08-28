@@ -7,7 +7,7 @@
  *
  *   For each of the four required categories, ONE documented 8004scan query
  *   is issued with the officially supported server-side filters
- *   (`chainId=56`, `isTestnet=false`, `search=<category keyword>`), then the
+ *   (`chainId=56|97` + `isTestnet=false|true`, `search=<category keyword>`), then the
  *   deterministic phrase classifier (./classifier.ts) decides which fetched
  *   records genuinely match the category. Category is NEVER claimed to be an
  *   8004scan field — every match carries the real metadata excerpt that
@@ -31,6 +31,7 @@
 
 import { has8004ScanApiKey, listAgents, type Scan8004Result } from "../client.ts";
 import { normalizeAgent } from "../normalize.ts";
+import type { Scan8004Meta } from "../types";
 import {
   classifyAgent,
   includeInBscDiscovery,
@@ -41,8 +42,62 @@ import {
 import type { LeaderboardAgent } from "../leaderboard-types";
 import type { Scan8004Agent } from "../types";
 
-/** Discovery is BNB Chain (chainId 56) ONLY — never mixed with other chains. */
-export const BSC_DISCOVERY_CHAIN_ID = 56;
+/** BNB Chain discovery scope (X.154): BSC mainnet (56) + BSC testnet (97). */
+export const BSC_DISCOVERY_CHAIN_IDS = [56, 97] as const;
+
+/** Per-chain API query configs for the two BNB chains. */
+const BSC_CHAIN_QUERIES = [
+  { chainId: 56, isTestnet: false },
+  { chainId: 97, isTestnet: true },
+] as const;
+
+/**
+ * One bounded BNB-chain read: a `GET /agents` per BNB chain (56 mainnet +
+ * 97 testnet), merged into a single result. Bounded at 2 requests per keyword
+ * (never a loop over the registry). The API's `chainId` filter is
+ * single-valued, so both BNB chains are queried explicitly and merged; the
+ * deterministic `includeInBscDiscovery` guard keeps other chains out.
+ */
+async function listBscAgents(params: {
+  page: number;
+  limit: number;
+  search?: string;
+  sortBy?: "name" | "created_at" | "stars" | "token_id" | "total_score";
+  sortOrder?: "asc" | "desc";
+}): Promise<Scan8004Result<Scan8004Agent>> {
+  const results = await Promise.all(
+    BSC_CHAIN_QUERIES.map((c) =>
+      listAgents({
+        page: params.page,
+        limit: params.limit,
+        chainId: c.chainId,
+        isTestnet: c.isTestnet,
+        search: params.search,
+        sortBy: params.sortBy,
+        sortOrder: params.sortOrder,
+      })
+    )
+  );
+  const ok = results.filter(
+    (r): r is { ok: true; data: Scan8004Agent[]; meta: Scan8004Meta } => r.ok
+  );
+  const failed = results.find((r) => !r.ok && r.status != null);
+  if (ok.length === 0) {
+    return failed ?? { ok: false, reason: "error" };
+  }
+  const data = ok.flatMap((r) => r.data);
+  const total = ok.reduce((sum, r) => sum + (r.meta.pagination?.total ?? 0), 0);
+  const timestamp = ok.map((r) => r.meta.timestamp ?? null).find((t) => t !== null) ?? undefined;
+  const firstPagination = ok[0]?.meta.pagination;
+  return {
+    ok: true,
+    data,
+    meta: {
+      timestamp,
+      pagination: firstPagination ? { ...firstPagination, total } : undefined,
+    },
+  };
+}
 
 /** Honest per-bucket availability (same state space as the marketplace). */
 export type BscDiscoveryBucketState =
@@ -67,7 +122,7 @@ export interface BscDiscoveryBucket {
   label: string;
   searchKeyword: string;
   state: BscDiscoveryBucketState;
-  /** API's own `search=<keyword>&chainId=56` total (meta.pagination.total). */
+  /** API's own per-chain `search=<keyword>` total (both BNB chains). */
   hits: number | null;
   /** Unique records actually fetched for the keyword (deduped). */
   retrieved: number;
@@ -208,7 +263,7 @@ export interface GetBscCategoryDiscoveryOptions {
 
 /**
  * One bounded discovery pass: one `GET /agents` per category keyword with
- * `chainId=56` + `isTestnet=false` (officially supported server-side filters,
+ * `chainId=56|97` + `isTestnet=false|true` (officially supported server-side filters,
  * live-verified in P7), then pure assembly. Keyless-safe: without
  * `8004SCAN_API_KEY` the honest "missing-key" state is returned — nothing is
  * simulated. Never loops; the full registry is never fetched.
@@ -232,13 +287,7 @@ export async function getBscCategoryDiscovery(
   const inputs = await Promise.all(
     DISCOVERY_CATEGORIES.map(async ({ key, searchKeyword }) => ({
       key,
-      result: await listAgents({
-        page,
-        limit,
-        chainId: BSC_DISCOVERY_CHAIN_ID,
-        isTestnet: false,
-        search: searchKeyword,
-      }),
+      result: await listBscAgents({ page, limit, search: searchKeyword }),
     }))
   );
 
@@ -263,8 +312,8 @@ export interface BscCategoryPageData {
  *
  * The four Main Track category pages each render exactly one category, so
  * issuing all four keyword queries per page would be wasteful. This reuses
- * the same officially supported server-side filters (`chainId=56`,
- * `isTestnet=false`, `search=<keyword>`) and the SAME deterministic phrase
+ * the same officially supported server-side filters (`chainId=56`/`97`,
+ * `isTestnet=false`/`true`, `search=<keyword>`) and the SAME deterministic phrase
  * classifier as the marketplace, so a category page and the marketplace can
  * never disagree about what qualifies.
  *
@@ -281,16 +330,20 @@ export async function getBscCategoryPage(
     return { state: "error", bucket: null, lastIndexed: null, fetchedAt: null, source: "8004scan" };
   }
   if (!has8004ScanApiKey()) {
-    return { state: "missing-key", bucket: null, lastIndexed: null, fetchedAt: null, source: "8004scan" };
+    return {
+      state: "missing-key",
+      bucket: null,
+      lastIndexed: null,
+      fetchedAt: null,
+      source: "8004scan",
+    };
   }
 
   const limit = Math.min(Math.max(options.maxPerCategory ?? 100, 1), 100);
   const page = options.page ?? 1;
-  const result = await listAgents({
+  const result = await listBscAgents({
     page,
     limit,
-    chainId: BSC_DISCOVERY_CHAIN_ID,
-    isTestnet: false,
     search: definition.searchKeyword,
   });
 

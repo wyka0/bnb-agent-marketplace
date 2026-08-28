@@ -33,6 +33,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "altana:verify": "node dist/altana/verify.js",
+    "altana:main-track-user-wallet:verify": "node dist/altana/v2/main-track-user-wallet.verify.js",
     "altana:erc8183:verify": "node dist/altana/erc8183.verify.js",
     "altana:skills:verify": "node dist/altana/skills.verify.js",
     "altana:x402:verify": "node dist/altana/x402.verify.js",

@@ -226,7 +226,13 @@ export function classifyAgent(agent: LeaderboardAgent): DiscoveryResult {
   return classifyAgentText({ name: agent.name, description: agent.description });
 }
 
-/** BSC inclusion guard — discovery NEVER mixes other chains. */
+/**
+ * BSC inclusion guard — discovery surfaces BNB Chain ONLY (never other
+ * chains). X.154: both BSC mainnet (chain 56) and BSC testnet (chain 97) are
+ * supported for the hackathon, so testnet records are included. The marketplace
+ * must surface real BSC Testnet agents; a stale/unreachable seller endpoint is
+ * a data-quality state, not a reason to hide the agent.
+ */
 export function includeInBscDiscovery(chainId: number, isTestnet: boolean): boolean {
-  return chainId === 56 && isTestnet === false;
+  return (chainId === 56 && isTestnet === false) || (chainId === 97 && isTestnet === true);
 }
