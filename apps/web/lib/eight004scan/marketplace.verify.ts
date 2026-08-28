@@ -229,6 +229,19 @@ console.log("marketplace verify: card mapping (toAgentCardData)");
   check("risk never set on the card", !("risk" in card));
 }
 
+{
+  // X.160: a chain-97 agent with a registered owner is Main Track Hireable.
+  const card = toAgentCardData(normalizeAgent(TESTNET_X402_AGENT));
+  check(
+    "chain-97 agent with owner is hireable (Main Track)",
+    card.hireable === true && card.hireLabel === "Hire"
+  );
+  check(
+    "hire unavailable reason is undefined when hireable",
+    card.hireUnavailableReason === undefined
+  );
+}
+
 console.log("marketplace verify: filters + sort (honest rules)");
 
 {

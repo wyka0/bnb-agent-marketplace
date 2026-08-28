@@ -50,6 +50,13 @@ export function toAgentCardData(agent: LeaderboardAgent): AgentCardData {
     chainId: agent.chainId,
     isTestnet: agent.isTestnet,
   });
+  // X.160: Main Track Hire (Model B) is available for any chain-97 agent with a
+  // registered owner — its detail page dynamically negotiates with the live
+  // seller and fails closed honestly. The card reflects that state so a
+  // hireable agent is never shown as "Unavailable". Model A ACTIVATABLE remains
+  // capability-derived and unchanged.
+  const mainTrackHireable = agent.chainId === 97 && Boolean(agent.ownerAddress);
+  const hireable = activation.state === "ACTIVATABLE" || mainTrackHireable;
   const reputation =
     agent.averageScore != null || agent.totalFeedbacks != null
       ? {
@@ -70,11 +77,16 @@ export function toAgentCardData(agent: LeaderboardAgent): AgentCardData {
     updatedAt: agent.updatedAt ?? undefined,
     badges: agent.verification === "verified" ? [{ kind: "erc8004-verified" }] : undefined,
     href: agentHrefFromId(agent.slug),
-    // `hireable` is CAPABILITY-DERIVED, never hard-coded: true only when the
-    // agent classifies ACTIVATABLE (chain 97 + a verified actionable
-    // capability). All real registry agents stay non-hireable/honest.
-    hireable: activation.state === "ACTIVATABLE",
-    hireUnavailableReason:
-      activation.state === "ACTIVATABLE" ? undefined : activation.detail,
+    hireable,
+    hireLabel: mainTrackHireable
+      ? "Hire"
+      : activation.state === "ACTIVATABLE"
+        ? "Activate"
+        : undefined,
+    hireUnavailableReason: hireable
+      ? undefined
+      : agent.chainId === 97
+        ? "Main Track Hire requires a chain-97 agent with a registered owner."
+        : activation.detail,
   } as AgentCardData;
 }

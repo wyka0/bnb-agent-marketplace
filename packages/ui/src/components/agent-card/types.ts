@@ -111,10 +111,12 @@ export interface AgentCardData {
   badges?: AgentBadge[];
   /** Detail page href — if card is to be an exposed anchor. */
   href?: string;
-  /** Whether the agent is hireable right now (coming soon → always false). */
+  /** Whether the agent is hireable right now (Main Track Hire / Model A activation). */
   hireable?: boolean;
   /** Honest disabled-state reason when activation is unavailable. */
   hireUnavailableReason?: string;
+  /** Primary-action label when hireable (defaults to "Activate"). */
+  hireLabel?: string;
 }
 
 /**
