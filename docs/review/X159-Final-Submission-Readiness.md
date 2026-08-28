@@ -12,7 +12,7 @@ Final Vercel production deployment (auto-triggered by the push): `dpl_4cKZ3qCGy9
 
 ## Repository state
 
-- **Exact commit SHA:** `7524c4e99477166bff6b85a1a7cc054ddd244501` — "BNB Agent Studio Marketplace: final submission"
+- **Exact commit SHA:** `32445e63ecb9a0e18904bc0104cf79f1d300a44a` — "BNB Agent Studio Marketplace: final submission"
 - **Pushed:** `main` (`850454d..7524c4e main -> main`); `origin/main == HEAD`.
 - Working tree clean; the one-off milestone diagnostic scripts are gitignored (not in the commit); no `.env`, keystores, wallet files, passwords, or credentials tracked.
 
@@ -70,7 +70,7 @@ Read-only PancakeSwap V2 market intelligence implemented, verified, production-l
 
 ## Exact commit SHA
 
-`7524c4e99477166bff6b85a1a7cc054ddd244501`
+`32445e63ecb9a0e18904bc0104cf79f1d300a44a`
 
 ## Exact Vercel deployment
 
