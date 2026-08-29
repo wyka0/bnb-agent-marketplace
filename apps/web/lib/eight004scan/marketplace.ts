@@ -335,7 +335,10 @@ export function scoreAgentMatch(
   if (tokens.length > 1 && tokens.every((t) => text.includes(t))) return 300;
   // P6 — a single query token present (ordinary text relevance). Restricted to
   // single-token queries so multi-word queries stay AND-only (X.163).
-  if (tokens.length === 1 && text.includes(tokens[0])) return 50;
+  if (tokens.length === 1) {
+    const only = tokens[0];
+    if (only && text.includes(only)) return 50;
+  }
   return 0;
 }
 

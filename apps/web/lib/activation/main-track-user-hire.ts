@@ -56,6 +56,16 @@ export const USER_HIRE_ALLOWLIST = [
 export const USER_HIRE_CHAIN_ID = 97;
 export const USER_HIRE_PRICE_WEI = "1000000000000000000"; // exactly 1 U
 
+/**
+ * X.165 — execution-attempt idempotency guard. At most ONE `runMainTrackUserHireFromWallet`
+ * invocation may be in flight for a given `attemptToken` at any time. A second invocation
+ * with the same token returns a safe "already in progress" result WITHOUT broadcasting any
+ * `eth_sendTransaction`. This is deterministic (not a timeout) and prevents duplicate wallet
+ * prompts caused by double-clicks, re-renders, or re-entry. Token-scoped, not global: distinct
+ * hire attempts (different tokens) are independent executions.
+ */
+const MAIN_TRACK_USER_HIRE_IN_FLIGHT = new Set<string>();
+
 /** Explicit production Hire state machine. */
 export const MAIN_TRACK_USER_HIRE_STATES = [
   "idle",
@@ -308,95 +318,117 @@ export async function runMainTrackUserHireFromWallet(input: {
   ): Promise<{ ok: boolean; reason?: string; fatal?: boolean }>;
   receiptMaxAttempts?: number;
   receiptIntervalMs?: number;
+  /**
+   * X.165 — stable token for the intended Hire attempt (e.g. `agentId:jobId`).
+   * Reusing the same token while an execution is in flight is a hard no-op that
+   * broadcasts nothing. Distinct tokens are separate, legitimate attempts.
+   */
+  attemptToken?: string;
 }): Promise<MainTrackUserHireWalletOutcome> {
-  const wallet = createMainTrackUserWallet({ request: input.request });
-  let identity: { address: string; chainId: number };
+  const token = input.attemptToken;
+  if (token) {
+    if (MAIN_TRACK_USER_HIRE_IN_FLIGHT.has(token)) {
+      return {
+        ok: false,
+        state: "failed",
+        step: null,
+        reason: "Hire execution already in progress; no additional transaction was submitted.",
+      };
+    }
+    MAIN_TRACK_USER_HIRE_IN_FLIGHT.add(token);
+  }
   try {
-    identity = await wallet.connect(input.expectations.expectedChainId);
-  } catch (error) {
-    return {
-      ok: false,
-      state: "failed",
-      step: null,
-      reason: `wallet connect failed: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-  if (identity.chainId !== input.expectations.expectedChainId) {
-    return { ok: false, state: "failed", step: null, reason: "wrong chain" };
-  }
-  // Bind the connected wallet as the plan client and re-validate the plan.
-  const boundPlan: MainTrackUserHirePlan = {
-    ...input.plan,
-    client: identity.address.toLowerCase(),
-  };
-  const bound = validateMainTrackUserHirePlan(boundPlan, input.expectations);
-  if (!bound.ok) {
-    return { ok: false, state: "failed", step: null, reason: bound.reason };
-  }
-
-  const txHashes = {} as Record<MainTrackUserHireStep, string>;
-  const maxAttempts = input.receiptMaxAttempts ?? 12;
-  const intervalMs = input.receiptIntervalMs ?? 1000;
-  for (const step of MAIN_TRACK_USER_HIRE_CALLS) {
-    input.onStep?.(step);
-    const confirmed = await input.confirmStep(step);
-    if (!confirmed) {
-      return {
-        ok: false,
-        state: "cancelled",
-        step,
-        reason: "user rejected the wallet prompt; no later transaction was submitted",
-      };
-    }
-    const call = boundPlan.calls[MAIN_TRACK_USER_HIRE_CALLS.indexOf(step)];
-    if (!call) {
-      return { ok: false, state: "failed", step, reason: "plan has no call for this step" };
-    }
-    let hash: string;
+    const wallet = createMainTrackUserWallet({ request: input.request });
+    let identity: { address: string; chainId: number };
     try {
-      ({ hash } = await wallet.sendCall(call, input.expectations.expectedChainId));
+      identity = await wallet.connect(input.expectations.expectedChainId);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const rejected = /user rejected|rejected transaction|action rejected/i.test(message);
       return {
         ok: false,
-        state: rejected ? "cancelled" : "failed",
-        step,
-        reason: message,
+        state: "failed",
+        step: null,
+        reason: `wallet connect failed: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
-    txHashes[step] = hash;
-    if (input.verifyStep) {
-      let confirmed = false;
-      for (let attempt = 0; attempt < maxAttempts && !confirmed; attempt += 1) {
-        const verdict = await input.verifyStep(hash, step);
-        if (verdict.ok) {
-          confirmed = true;
-          break;
+    if (identity.chainId !== input.expectations.expectedChainId) {
+      return { ok: false, state: "failed", step: null, reason: "wrong chain" };
+    }
+    // Bind the connected wallet as the plan client and re-validate the plan.
+    const boundPlan: MainTrackUserHirePlan = {
+      ...input.plan,
+      client: identity.address.toLowerCase(),
+    };
+    const bound = validateMainTrackUserHirePlan(boundPlan, input.expectations);
+    if (!bound.ok) {
+      return { ok: false, state: "failed", step: null, reason: bound.reason };
+    }
+
+    const txHashes = {} as Record<MainTrackUserHireStep, string>;
+    const maxAttempts = input.receiptMaxAttempts ?? 12;
+    const intervalMs = input.receiptIntervalMs ?? 1000;
+    for (const step of MAIN_TRACK_USER_HIRE_CALLS) {
+      input.onStep?.(step);
+      const confirmed = await input.confirmStep(step);
+      if (!confirmed) {
+        return {
+          ok: false,
+          state: "cancelled",
+          step,
+          reason: "user rejected the wallet prompt; no later transaction was submitted",
+        };
+      }
+      const call = boundPlan.calls[MAIN_TRACK_USER_HIRE_CALLS.indexOf(step)];
+      if (!call) {
+        return { ok: false, state: "failed", step, reason: "plan has no call for this step" };
+      }
+      let hash: string;
+      try {
+        ({ hash } = await wallet.sendCall(call, input.expectations.expectedChainId));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const rejected = /user rejected|rejected transaction|action rejected/i.test(message);
+        return {
+          ok: false,
+          state: rejected ? "cancelled" : "failed",
+          step,
+          reason: message,
+        };
+      }
+      txHashes[step] = hash;
+      if (input.verifyStep) {
+        let confirmed = false;
+        for (let attempt = 0; attempt < maxAttempts && !confirmed; attempt += 1) {
+          const verdict = await input.verifyStep(hash, step);
+          if (verdict.ok) {
+            confirmed = true;
+            break;
+          }
+          if (verdict.fatal) {
+            return {
+              ok: false,
+              state: "failed",
+              step,
+              reason: verdict.reason ?? "receipt verification failed",
+            };
+          }
+          if (attempt < maxAttempts - 1) {
+            await new Promise((resolve) => setTimeout(resolve, intervalMs));
+          }
         }
-        if (verdict.fatal) {
+        if (!confirmed) {
           return {
             ok: false,
             state: "failed",
             step,
-            reason: verdict.reason ?? "receipt verification failed",
+            reason: "receipt not confirmed (timeout); no rebroadcast was attempted",
           };
         }
-        if (attempt < maxAttempts - 1) {
-          await new Promise((resolve) => setTimeout(resolve, intervalMs));
-        }
-      }
-      if (!confirmed) {
-        return {
-          ok: false,
-          state: "failed",
-          step,
-          reason: "receipt not confirmed (timeout); no rebroadcast was attempted",
-        };
       }
     }
+    return { ok: true, wallet: identity.address, txHashes };
+  } finally {
+    if (token) MAIN_TRACK_USER_HIRE_IN_FLIGHT.delete(token);
   }
-  return { ok: true, wallet: identity.address, txHashes };
 }
 
 /** Final on-chain verification read (server-side via the read RPC). */

@@ -882,6 +882,188 @@ async function main(): Promise<void> {
     }
   }
 
+  // 16. X.165 — execution idempotency / single-broadcast invariants.
+  {
+    // 16.1 baseline: one attempt = exactly 5 sends, one per step.
+    {
+      const { plan, expectations } = planFromPrepare();
+      const mock = mockWallet();
+      const out = await runMainTrackUserHireFromWallet({
+        request: mock.request,
+        plan,
+        expectations,
+        confirmStep: async () => true,
+        verifyStep: async () => ({ ok: true }),
+        receiptMaxAttempts: 1,
+        receiptIntervalMs: 1,
+        attemptToken: "x165-baseline",
+      });
+      check(
+        "16.1 one attempt → 5 sends (one per step)",
+        out.ok === true && mock.sends.length === 5
+      );
+      const createJobSends = mock.sends.filter(
+        (s) =>
+          s.to.toLowerCase() === MAIN_TRACK_COMMERCE.toLowerCase() && s.data === plan.calls[0].data
+      );
+      const approve = mock.sends.filter(
+        (s) => s.to.toLowerCase() === MAIN_TRACK_PAYMENT_TOKEN.toLowerCase()
+      );
+      check("16.1 createJob sent exactly once (no duplicate job)", createJobSends.length === 1);
+      check("16.1 approve sent exactly once (no duplicate approval)", approve.length === 1);
+      const uniqueSteps = new Set(mock.sends.map((s) => `${s.to.toLowerCase()}:${s.data}`));
+      check("16.1 no step broadcast twice", uniqueSteps.size === mock.sends.length);
+    }
+
+    // 16.2 concurrent double invocation, SAME attemptToken → second broadcasts nothing.
+    {
+      const { plan, expectations } = planFromPrepare();
+      const mock = mockWallet();
+      const verify = async () => ({ ok: true });
+      const [a, b] = await Promise.all([
+        runMainTrackUserHireFromWallet({
+          request: mock.request,
+          plan,
+          expectations,
+          confirmStep: async () => true,
+          verifyStep: verify,
+          receiptMaxAttempts: 2,
+          receiptIntervalMs: 1,
+          attemptToken: "x165-same",
+        }),
+        runMainTrackUserHireFromWallet({
+          request: mock.request,
+          plan,
+          expectations,
+          confirmStep: async () => true,
+          verifyStep: verify,
+          receiptMaxAttempts: 2,
+          receiptIntervalMs: 1,
+          attemptToken: "x165-same",
+        }),
+      ]);
+      check(
+        "16.2 concurrent same-token → first succeeds, second blocked",
+        a.ok === true && b.ok === false && /already in progress/.test(b.reason ?? "")
+      );
+      check(
+        "16.2 concurrent same-token → exactly 5 sends (second broadcast nothing)",
+        mock.sends.length === 5
+      );
+    }
+
+    // 16.3 distinct attemptTokens → both independent executions (guard is token-scoped).
+    {
+      const { plan, expectations } = planFromPrepare();
+      const mock = mockWallet();
+      const verify = async () => ({ ok: true });
+      const [a, b] = await Promise.all([
+        runMainTrackUserHireFromWallet({
+          request: mock.request,
+          plan,
+          expectations,
+          confirmStep: async () => true,
+          verifyStep: verify,
+          receiptMaxAttempts: 2,
+          receiptIntervalMs: 1,
+          attemptToken: "x165-A",
+        }),
+        runMainTrackUserHireFromWallet({
+          request: mock.request,
+          plan,
+          expectations,
+          confirmStep: async () => true,
+          verifyStep: verify,
+          receiptMaxAttempts: 2,
+          receiptIntervalMs: 1,
+          attemptToken: "x165-B",
+        }),
+      ]);
+      check(
+        "16.3 distinct tokens → both execute, 10 sends (guard not a global kill-switch)",
+        a.ok === true && b.ok === true && mock.sends.length === 10
+      );
+    }
+
+    // 16.4 receipt polling reads never broadcast.
+    {
+      const { plan, expectations } = planFromPrepare();
+      const mock = mockWallet();
+      let polls = 0;
+      const verify = async (): Promise<{ ok: boolean }> => {
+        polls += 1;
+        return { ok: polls % 2 === 0 }; // pending then confirmed, per step
+      };
+      const out = await runMainTrackUserHireFromWallet({
+        request: mock.request,
+        plan,
+        expectations,
+        confirmStep: async () => true,
+        verifyStep: verify,
+        receiptMaxAttempts: 2,
+        receiptIntervalMs: 1,
+        attemptToken: "x165-poll",
+      });
+      check(
+        "16.4 receipt polling never broadcasts (still 5 sends)",
+        out.ok === true && mock.sends.length === 5
+      );
+      check("16.4 each step polled exactly twice (10 reads, 0 broadcasts)", polls === 10);
+    }
+
+    // 16.5 successful receipt advances exactly once.
+    {
+      const { plan, expectations } = planFromPrepare();
+      const mock = mockWallet();
+      let polls = 0;
+      const verify = async (): Promise<{ ok: boolean }> => {
+        polls += 1;
+        return { ok: true };
+      };
+      const out = await runMainTrackUserHireFromWallet({
+        request: mock.request,
+        plan,
+        expectations,
+        confirmStep: async () => true,
+        verifyStep: verify,
+        receiptMaxAttempts: 1,
+        receiptIntervalMs: 1,
+        attemptToken: "x165-once",
+      });
+      check(
+        "16.5 successful receipt advances once (5 sends, 5 polls)",
+        out.ok === true && mock.sends.length === 5 && polls === 5
+      );
+    }
+
+    // 16.6 reverted receipt stops the flow (no later step, no rebroadcast).
+    {
+      const { plan, expectations } = planFromPrepare();
+      const mock = mockWallet();
+      const verify = async (_h: string, step: string): Promise<{ ok: boolean; fatal?: boolean }> =>
+        step === "approve" ? { ok: false, fatal: true, reason: "reverted" } : { ok: true };
+      const out = await runMainTrackUserHireFromWallet({
+        request: mock.request,
+        plan,
+        expectations,
+        confirmStep: async () => true,
+        verifyStep: verify,
+        receiptMaxAttempts: 1,
+        receiptIntervalMs: 1,
+        attemptToken: "x165-revert",
+      });
+      // createJob, registerJob, setBudget, approve sent; approve reverted → stop
+      // (4 sends: the reverted step IS broadcast, then the flow halts — no fund).
+      const approveSent =
+        mock.sends[mock.sends.length - 1]?.to.toLowerCase() ===
+        MAIN_TRACK_PAYMENT_TOKEN.toLowerCase();
+      check(
+        "16.6 reverted approve → stop at 4 sends (approve broadcast then halts, no fund, no rebroadcast)",
+        out.ok === false && out.state === "failed" && mock.sends.length === 4 && approveSent
+      );
+    }
+  }
+
   if (failures === 0) {
     console.log("X.149 main-track-user-hire verify: ALL CHECKS PASSED");
   } else {

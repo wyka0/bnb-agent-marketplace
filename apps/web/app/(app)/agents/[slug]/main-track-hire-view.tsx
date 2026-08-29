@@ -54,10 +54,16 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
   const [state, setState] = React.useState<HireStepState>({ kind: "idle" });
   const [plan, setPlan] = React.useState<MainTrackUserHirePrepareResult | null>(null);
   const busy = state.kind === "preparing" || state.kind === "running";
+  // X.165 — hard re-entrancy guard. While a Hire execution is in flight, no further
+  // invocation of confirmHire (double-click, re-render, stale closure, re-click) may
+  // start another execution. Cleared only on a terminal outcome. Deterministic, not a timeout.
+  const hireInFlight = React.useRef(false);
 
   const review = plan?.review ?? null;
 
   async function prepare() {
+    if (hireInFlight.current) return;
+    if (state.kind === "preparing" || state.kind === "running") return;
     const csrf = csrfCookie();
     if (csrf === null) {
       setState({
@@ -92,111 +98,123 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
   }
 
   async function confirmHire() {
+    if (hireInFlight.current) return;
     if (!plan) return;
-    const ethereum = (
-      window as unknown as {
-        ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
-      }
-    ).ethereum;
-    if (!ethereum) {
-      setState({
-        kind: "failed",
-        message: "No wallet connected — connect your EIP-1193 wallet to continue.",
-      });
-      return;
-    }
-    const csrf = csrfCookie();
-    if (csrf === null) {
-      setState({
-        kind: "failed",
-        message: "Authentication required — connect your wallet, then return.",
-      });
-      return;
-    }
-
-    const request = (method: string, params: unknown[]): Promise<unknown> =>
-      ethereum.request({ method, params });
-
-    const verifyStep = async (txHash: string, step: MainTrackUserHireStep) => {
-      const response = await fetch("/api/activation/main-track-hire", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": csrf },
-        body: JSON.stringify({ action: "receipt", agentId: agent.slug, txHash }),
-      });
-      const body = (await response.json()) as ApiEnvelope<{ receipt: { status: string } }>;
-      const status = body.ok ? body.data?.receipt.status : "unavailable";
-      void step;
-      if (status === "confirmed") return { ok: true };
-      if (status === "pending") return { ok: false };
-      if (status === "reverted") return { ok: false, fatal: true, reason: "transaction reverted" };
-      return { ok: false, fatal: true, reason: "receipt verification unavailable" };
-    };
-
-    setState({ kind: "running", step: null });
-    const outcome = await runMainTrackUserHireFromWallet({
-      request,
-      plan: {
-        chainId: plan.chainId,
-        client: "",
-        provider: plan.seller.toLowerCase(),
-        budget: plan.price,
-        jobId: plan.jobId,
-        expiredAt: plan.expiredAt,
-        calls: plan.calls,
-      },
-      expectations: plan.expectations,
-      confirmStep: async () => true,
-      verifyStep,
-      receiptMaxAttempts: 40,
-      receiptIntervalMs: 1500,
-      onStep: (step: MainTrackUserHireStep | null) => setState({ kind: "running", step }),
-    });
-
-    if (!outcome.ok) {
-      setState({
-        kind: outcome.state === "cancelled" ? "cancelled" : "failed",
-        message: mainTrackUserHireErrorMessage({
-          state: outcome.state,
-          step: outcome.step,
-          reason: outcome.reason,
-        }),
-      });
-      return;
-    }
-
-    // Independent final verification through the marketplace (PublicNode).
-    setState({ kind: "running", step: null, label: "Verifying on-chain result" });
+    hireInFlight.current = true;
     try {
-      const response = await fetch("/api/activation/main-track-hire", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": csrf },
-        body: JSON.stringify({
-          action: "verify",
-          agentId: agent.slug,
+      const ethereum = (
+        window as unknown as {
+          ethereum?: {
+            request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+          };
+        }
+      ).ethereum;
+      if (!ethereum) {
+        setState({
+          kind: "failed",
+          message: "No wallet connected — connect your EIP-1193 wallet to continue.",
+        });
+        return;
+      }
+      const csrf = csrfCookie();
+      if (csrf === null) {
+        setState({
+          kind: "failed",
+          message: "Authentication required — connect your wallet, then return.",
+        });
+        return;
+      }
+
+      const request = (method: string, params: unknown[]): Promise<unknown> =>
+        ethereum.request({ method, params });
+
+      const verifyStep = async (txHash: string, step: MainTrackUserHireStep) => {
+        const response = await fetch("/api/activation/main-track-hire", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-csrf-token": csrf },
+          body: JSON.stringify({ action: "receipt", agentId: agent.slug, txHash }),
+        });
+        const body = (await response.json()) as ApiEnvelope<{ receipt: { status: string } }>;
+        const status = body.ok ? body.data?.receipt.status : "unavailable";
+        void step;
+        if (status === "confirmed") return { ok: true };
+        if (status === "pending") return { ok: false };
+        if (status === "reverted")
+          return { ok: false, fatal: true, reason: "transaction reverted" };
+        return { ok: false, fatal: true, reason: "receipt verification unavailable" };
+      };
+
+      setState({ kind: "running", step: null });
+      const outcome = await runMainTrackUserHireFromWallet({
+        request,
+        plan: {
+          chainId: plan.chainId,
+          client: "",
+          provider: plan.seller.toLowerCase(),
+          budget: plan.price,
           jobId: plan.jobId,
-          walletAddress: outcome.wallet,
-        }),
+          expiredAt: plan.expiredAt,
+          calls: plan.calls,
+        },
+        expectations: plan.expectations,
+        confirmStep: async () => true,
+        verifyStep,
+        receiptMaxAttempts: 40,
+        receiptIntervalMs: 1500,
+        // Stable per prepared plan: a concurrent re-entry with the same token is a
+        // hard no-op that broadcasts nothing (X.165).
+        attemptToken: `${agent.slug}:${plan.jobId}`,
+        onStep: (step: MainTrackUserHireStep | null) => setState({ kind: "running", step }),
       });
-      const body = (await response.json()) as ApiEnvelope<{ jobId: string }>;
-      if (!response.ok || !body.ok) {
+
+      if (!outcome.ok) {
+        setState({
+          kind: outcome.state === "cancelled" ? "cancelled" : "failed",
+          message: mainTrackUserHireErrorMessage({
+            state: outcome.state,
+            step: outcome.step,
+            reason: outcome.reason,
+          }),
+        });
+        return;
+      }
+
+      // Independent final verification through the marketplace (PublicNode).
+      setState({ kind: "running", step: null, label: "Verifying on-chain result" });
+      try {
+        const response = await fetch("/api/activation/main-track-hire", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-csrf-token": csrf },
+          body: JSON.stringify({
+            action: "verify",
+            agentId: agent.slug,
+            jobId: plan.jobId,
+            walletAddress: outcome.wallet,
+          }),
+        });
+        const body = (await response.json()) as ApiEnvelope<{ jobId: string }>;
+        if (!response.ok || !body.ok) {
+          setState({
+            kind: "failed",
+            message:
+              "Job created, but Hire could not be safely completed. No additional transaction was submitted.",
+          });
+          return;
+        }
+        setState({
+          kind: "funded",
+          jobId: body.data?.jobId ?? plan.jobId,
+          txHashes: outcome.txHashes,
+        });
+      } catch {
         setState({
           kind: "failed",
           message:
             "Job created, but Hire could not be safely completed. No additional transaction was submitted.",
         });
-        return;
       }
-      setState({
-        kind: "funded",
-        jobId: body.data?.jobId ?? plan.jobId,
-        txHashes: outcome.txHashes,
-      });
-    } catch {
-      setState({
-        kind: "failed",
-        message:
-          "Job created, but Hire could not be safely completed. No additional transaction was submitted.",
-      });
+    } finally {
+      hireInFlight.current = false;
     }
   }
 
