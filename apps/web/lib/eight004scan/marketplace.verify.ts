@@ -24,6 +24,7 @@ import {
   applyMarketplaceFilters,
   sortMarketplaceAgents,
   categoryKeyFromLabel,
+  agentSearchText,
 } from "./marketplace.ts";
 import { toAgentCardData, agentHrefFromId, chainLabelForId } from "./card.ts";
 import {
@@ -281,6 +282,31 @@ console.log("marketplace verify: filters + sort (honest rules)");
   check("risk selection → zero matches (no data)", risks.length === 0);
   const q = applyMarketplaceFilters(agents, { ...base, query: "grid" });
   check("query matches name surface", q.length === 1 && q[0].slug === "56:0xCfFacE0003:1001");
+  // X.163: token-id-aware + all-token search semantics.
+  const agents2 = normalizeAgents([EVM_VERIFIED_AGENT, TESTNET_X402_AGENT]);
+  const t1 = applyMarketplaceFilters(agents2, { ...base, query: "Agent 1001" });
+  check(
+    "search 'Agent 1001' finds the agent via token id",
+    t1.length === 1 && t1[0].slug === "56:0xCfFacE0003:1001"
+  );
+  const t2 = applyMarketplaceFilters(agents2, { ...base, query: "Trading Testbot" });
+  check(
+    "search by name (all tokens) finds only the named agent",
+    t2.length === 1 && t2[0].slug === "97:0xTe5tNeT:13"
+  );
+  const t2b = applyMarketplaceFilters(agents2, { ...base, query: "trading" });
+  check(
+    "single common word does not over-match",
+    t2b.length >= 1 && t2b.every((a) => agentSearchText(a).includes("trading"))
+  );
+  const t3 = applyMarketplaceFilters(agents2, { ...base, query: "97:0xTe5tNeT:13" });
+  check("search by agent id finds the agent", t3.length === 1);
+  const t4 = applyMarketplaceFilters(agents2, { ...base, query: "13" });
+  check("search by token id finds the agent", t4.length === 1);
+  const t5 = applyMarketplaceFilters(agents2, { ...base, query: "totally-absent-token" });
+  check("search for an absent term matches nothing", t5.length === 0);
+  const t6 = applyMarketplaceFilters(agents2, { ...base, query: "Agent 9999" });
+  check("search 'Agent 9999' matches nothing (no 9999 token)", t6.length === 0);
   check("categoryKeyFromLabel normalizes", categoryKeyFromLabel("Grid Trading") === "grid-trading");
 }
 

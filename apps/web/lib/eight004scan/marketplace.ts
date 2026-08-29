@@ -261,7 +261,15 @@ export function agentSearchText(a: LeaderboardAgent): string {
 export function matchesSearch(a: LeaderboardAgent, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return agentSearchText(a).includes(q);
+  const text = agentSearchText(a);
+  if (text.includes(q)) return true;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  // X.163: token-id-aware search — "Agent 2005" finds the agent whose token id
+  // is 2005 (via its registry id). Still matches only real registry fields.
+  if (a.tokenId && tokens.some((t) => t === a.tokenId.toLowerCase())) return true;
+  // Multi-word name/description queries must satisfy every token (AND), so a
+  // single common word ("trading") never over-matches.
+  return tokens.length > 1 && tokens.every((t) => text.includes(t));
 }
 
 /** Facets with NO backing registry data: any selection matches nothing. */
