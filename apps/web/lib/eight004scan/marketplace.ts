@@ -258,18 +258,90 @@ export function agentSearchText(a: LeaderboardAgent): string {
     .toLowerCase();
 }
 
-export function matchesSearch(a: LeaderboardAgent, query: string): boolean {
+/**
+ * The marketplace's live-seller registry chain (BSC Testnet). A record's full
+ * identity is `chainId:contract:tokenId` — token ids are NOT globally unique
+ * across chains/registries, so search keeps chain context and never collapses
+ * e.g. `97:registry:2005` with a `56:registry:2005` record.
+ */
+export const MARKETPLACE_LIVE_CHAIN = 97;
+
+/**
+ * Relevance-scoring context for a search over a fixed result set. `tokenCount`
+ * maps a token id to how many records in the set share it — used so a bare/ambiguous
+ * token id is never treated as a globally unique exact match.
+ */
+export interface AgentSearchCtx {
+  tokenCount: ReadonlyMap<string, number>;
+}
+
+const NO_SEARCH_CTX: AgentSearchCtx = { tokenCount: new Map() };
+
+/**
+ * Deterministic relevance ordering (X.164). Returns 0 when the agent does not
+ * match the query, otherwise a positive score where HIGHER = more relevant:
+ *
+ *   1. exact normalized agent name                         → 1000
+ *   2. exact normalized slug (route key)                   → 950
+ *   3. exact full registry identifier (agentId)            → 950
+ *   4. token-id match — only when unambiguous + referenced → 600 / 200 / 150
+ *   5. all query tokens present (AND)                       → 300
+ *   6. any query token present (normal text relevance)      → 50
+ *
+ * Token-id matching is chain-aware and never globally unique: a bare numeric
+ * token is scored as a medium (150) match; an explicit `Agent <n>` / chain
+ * reference raises it, but only to 600 when the token is unambiguous within the
+ * result set. When two or more records share a token id, both are returned and
+ * ranked (the live chain gets a small tie-break boost) — never a single
+ * arbitrary selection.
+ */
+export function scoreAgentMatch(
+  a: LeaderboardAgent,
+  query: string,
+  ctx: AgentSearchCtx = NO_SEARCH_CTX
+): number {
   const q = query.trim().toLowerCase();
-  if (!q) return true;
+  if (!q) return 1;
   const text = agentSearchText(a);
-  if (text.includes(q)) return true;
+  // P1 — exact normalized name.
+  if (a.name.trim().toLowerCase() === q) return 1000;
+  // P2 — exact slug (the registry identity used by the detail route).
+  if (a.slug.toLowerCase() === q) return 950;
+  // P3 — exact full registry identifier.
+  if (a.agentId.toLowerCase() === q) return 950;
+
   const tokens = q.split(/\s+/).filter(Boolean);
-  // X.163: token-id-aware search — "Agent 2005" finds the agent whose token id
-  // is 2005 (via its registry id). Still matches only real registry fields.
-  if (a.tokenId && tokens.some((t) => t === a.tokenId.toLowerCase())) return true;
-  // Multi-word name/description queries must satisfy every token (AND), so a
-  // single common word ("trading") never over-matches.
-  return tokens.length > 1 && tokens.every((t) => text.includes(t));
+  const numTokens = tokens.filter((t) => /^\d+$/.test(t));
+  if (numTokens.length > 0 && numTokens.every((t) => t === a.tokenId)) {
+    // Token-id matching only fires for an explicit reference ("Agent 2005" /
+    // "token 2005" / a `chain:registry:token` shape) or a bare single numeric
+    // token. A multi-word name query that merely contains a number must NOT
+    // collapse onto a same-token record — it falls through to text relevance.
+    const explicitRef =
+      tokens.some((t) => t === "agent" || t === "token" || t === "id") || q.includes(":");
+    const isBareTokenQuery = tokens.length === 1;
+    if (explicitRef || isBareTokenQuery) {
+      const unambiguous = (ctx.tokenCount.get(a.tokenId) ?? 0) <= 1;
+      const chainBoost = a.chainId === MARKETPLACE_LIVE_CHAIN ? 25 : 0;
+      if (explicitRef && unambiguous) return 600 + chainBoost; // referenced + unique → strong
+      if (explicitRef) return 200 + chainBoost; // referenced but ambiguous → shown, lower
+      // Bare numeric token: NOT globally unique → medium, never an exact identity.
+      return 150 + chainBoost;
+    }
+  }
+
+  // P5 — every query token must appear (AND), so a single common word never
+  // over-matches.
+  if (tokens.length > 1 && tokens.every((t) => text.includes(t))) return 300;
+  // P6 — a single query token present (ordinary text relevance). Restricted to
+  // single-token queries so multi-word queries stay AND-only (X.163).
+  if (tokens.length === 1 && text.includes(tokens[0])) return 50;
+  return 0;
+}
+
+/** Boolean match predicate (used by non-ranking callers). */
+export function matchesSearch(a: LeaderboardAgent, query: string): boolean {
+  return scoreAgentMatch(a, query, { tokenCount: new Map([[a.tokenId, 1]]) }) > 0;
 }
 
 /** Facets with NO backing registry data: any selection matches nothing. */
@@ -277,8 +349,12 @@ function matchesNoData(set: ReadonlySet<string>): boolean {
   return set.size > 0 ? false : true;
 }
 
-export function matchesFilters(a: LeaderboardAgent, filters: MarketplaceFilters): boolean {
-  if (!matchesSearch(a, filters.query)) return false;
+export function matchesFilters(
+  a: LeaderboardAgent,
+  filters: MarketplaceFilters,
+  ctx: AgentSearchCtx
+): boolean {
+  if (scoreAgentMatch(a, filters.query, ctx) <= 0) return false;
 
   // Category: the verified model carries no registered category (null) — a
   // category selection deterministically returns zero matches (never a guess).
@@ -318,7 +394,29 @@ export function applyMarketplaceFilters(
   agents: LeaderboardAgent[],
   filters: MarketplaceFilters
 ): LeaderboardAgent[] {
-  return agents.filter((a) => matchesFilters(a, filters));
+  // Relevance context: how many records in this set share each token id. A token
+  // id shared by 2+ records is ambiguous and must not be treated as a unique exact
+  // match (X.164).
+  const tokenCount = new Map<string, number>();
+  for (const a of agents) {
+    if (!a.tokenId) continue;
+    tokenCount.set(a.tokenId, (tokenCount.get(a.tokenId) ?? 0) + 1);
+  }
+  const ctx: AgentSearchCtx = { tokenCount };
+
+  const matched = agents.filter((a) => matchesFilters(a, filters, ctx));
+  // Deterministic relevance ordering: when a query is present, rank by score
+  // (exact name/slug/id first, then token relevance, then text) — stable tie-break
+  // by name. Ambiguous token matches are all returned, never a single arbitrary pick.
+  if (filters.query.trim()) {
+    matched.sort((x, y) => {
+      const sx = scoreAgentMatch(x, filters.query, ctx);
+      const sy = scoreAgentMatch(y, filters.query, ctx);
+      if (sy !== sx) return sy - sx;
+      return x.name.localeCompare(y.name);
+    });
+  }
+  return matched;
 }
 
 export type MarketplaceSortKey =

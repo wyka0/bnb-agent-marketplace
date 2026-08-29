@@ -32,6 +32,8 @@ import {
   SOLANA_AGENT,
   ZERO_SIGNALS_AGENT,
   TESTNET_X402_AGENT,
+  CANNED_RANGE_KEEPER,
+  GLYPH_2005,
 } from "./fixtures.ts";
 
 let passed = 0;
@@ -308,6 +310,75 @@ console.log("marketplace verify: filters + sort (honest rules)");
   const t6 = applyMarketplaceFilters(agents2, { ...base, query: "Agent 9999" });
   check("search 'Agent 9999' matches nothing (no 9999 token)", t6.length === 0);
   check("categoryKeyFromLabel normalizes", categoryKeyFromLabel("Grid Trading") === "grid-trading");
+}
+
+{
+  // X.164 — ambiguous token-id search (token 2005 shared by a chain-97 live agent
+  // and an unrelated chain-56 record). No hardcoding of any agent.
+  const base = {
+    query: "",
+    categories: new Set<string>(),
+    verifications: new Set<string>(),
+    risks: new Set<string>(),
+    protocols: new Set<string>(),
+    activities: new Set<string>(),
+    statuses: new Set<string>(),
+    registryStates: new Set<string>(),
+    verifiedBuildersOnly: false,
+  };
+  const agents = normalizeAgents([CANNED_RANGE_KEEPER, GLYPH_2005, EVM_VERIFIED_AGENT]);
+  const live = "97:0x8004A818BFB912233c491871b3d84c89A494BD9e:2005";
+  const glyph = "56:0xCfFacE0003:2005";
+
+  const byName = applyMarketplaceFilters(agents, { ...base, query: "Canned Range Keeper" });
+  check("'Canned Range Keeper' → exact name first", byName[0]?.slug === live);
+
+  const bySlug = applyMarketplaceFilters(agents, { ...base, query: live });
+  check(
+    "exact Canned Range Keeper slug → exact record",
+    bySlug.length === 1 && bySlug[0].slug === live
+  );
+
+  const agent2005 = applyMarketplaceFilters(agents, { ...base, query: "Agent 2005" });
+  check(
+    "ambiguous 'Agent 2005' returns both token-2005 records (no single arbitrary pick)",
+    agent2005.length === 2 &&
+      agent2005.some((a) => a.slug === live) &&
+      agent2005.some((a) => a.slug === glyph)
+  );
+  check(
+    "ambiguous 'Agent 2005' ranks the chain-97 live seller first (chain-aware, not collapsed)",
+    agent2005[0]?.slug === live
+  );
+
+  const hash2005 = applyMarketplaceFilters(agents, { ...base, query: "#2005" });
+  check(
+    "'#2005' returns the literally-named record deterministically (not the live agent)",
+    hash2005.length === 1 && hash2005[0].slug === glyph
+  );
+
+  const bare = applyMarketplaceFilters(agents, { ...base, query: "2005" });
+  check("bare '2005' is not globally unique — both token-2005 records returned", bare.length === 2);
+  check("bare '2005' still ranks the chain-97 live seller first", bare[0]?.slug === live);
+
+  const caseQ = applyMarketplaceFilters(agents, { ...base, query: "canned range keeper" });
+  check("case-insensitive name search", caseQ.length === 1 && caseQ[0].slug === live);
+
+  const partial = applyMarketplaceFilters(agents, { ...base, query: "Range Keeper" });
+  check("partial name search → exact record", partial.length === 1 && partial[0].slug === live);
+
+  const andQ = applyMarketplaceFilters(agents, { ...base, query: "Canned Range Keeper 2005" });
+  check(
+    "all-token AND disambiguates to the single named record",
+    andQ.length === 1 && andQ[0].slug === live
+  );
+
+  const chainPreserve = applyMarketplaceFilters(agents, { ...base, query: "Agent 2005" });
+  check(
+    "chain-97 identity preserved — live seller (97:…:2005) not collapsed with chain-56 (56:…:2005)",
+    chainPreserve.find((a) => a.slug === live)?.chainId === 97 &&
+      chainPreserve.find((a) => a.slug === glyph)?.chainId === 56
+  );
 }
 
 {
