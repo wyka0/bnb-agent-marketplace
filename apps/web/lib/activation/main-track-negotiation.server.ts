@@ -38,7 +38,7 @@ export const HIRE_TERMS = {
 };
 
 /** Decode an EIP-8004 data-URI agent card to JSON (base64 or percent-encoded). */
-function decodeAgentCard(
+export function decodeAgentCard(
   uri: string
 ): { name?: string; services?: Array<{ name?: string; endpoint?: string }> } | null {
   if (!uri.startsWith("data:")) return null;
@@ -57,7 +57,40 @@ function decodeAgentCard(
   }
 }
 
-/** Resolve the agent's registered HTTP A2A endpoint from its on-chain card. */
+/** A registered service entry on an EIP-8004 agent card. */
+export interface AgentCardService {
+  name?: string;
+  endpoint?: string;
+  version?: string;
+}
+
+export interface AgentCardLike {
+  services?: AgentCardService[];
+}
+
+/**
+ * X.162 — resolve the registered HTTPS ERC-8183/A2A negotiation endpoint from an
+ * agent card. An "ERC-8183" service is a legitimate seller negotiation endpoint
+ * (not just "A2A"). Only a registered card service with an HTTPS endpoint is
+ * ever used — never an arbitrary URL. Returns null (fail closed) otherwise.
+ */
+export function resolveServiceEndpointFromCard(card: AgentCardLike | null): {
+  endpoint: string | null;
+} {
+  const services = card?.services ?? [];
+  const service =
+    services.find(
+      (s) =>
+        s &&
+        typeof s.endpoint === "string" &&
+        /^https:\/\//.test(s.endpoint) &&
+        /erc-?8183|a2a/i.test(s.name ?? "")
+    ) ??
+    services.find((s) => s && typeof s.endpoint === "string" && /^https:\/\//.test(s.endpoint));
+  return { endpoint: service?.endpoint ?? null };
+}
+
+/** Resolve the agent's registered HTTPS ERC-8183/A2A endpoint from its on-chain card. */
 export async function resolveRegisteredEndpoint(
   agentId: string
 ): Promise<{ endpoint: string | null; reason?: string }> {
@@ -79,13 +112,14 @@ export async function resolveRegisteredEndpoint(
       args: [tokenId],
     });
     const card = decodeAgentCard(uri);
-    const service = (card?.services ?? []).find(
-      (s) => s && typeof s.endpoint === "string" && /^https?:\/\//.test(s.endpoint)
-    );
-    if (!service?.endpoint) {
-      return { endpoint: null, reason: "agent card has no HTTP A2A endpoint" };
+    const { endpoint } = resolveServiceEndpointFromCard(card);
+    if (!endpoint) {
+      return {
+        endpoint: null,
+        reason: "agent card has no registered HTTPS ERC-8183/A2A endpoint",
+      };
     }
-    return { endpoint: service.endpoint };
+    return { endpoint };
   } catch {
     return { endpoint: null, reason: "could not read the agent card" };
   }

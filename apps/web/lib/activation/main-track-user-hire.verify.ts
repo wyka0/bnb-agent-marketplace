@@ -31,6 +31,10 @@ import type {
   MainTrackUserHireJobRead,
 } from "./main-track-user-hire.ts";
 import { prepareLiveAgentHire } from "./main-track-negotiation.server.ts";
+import {
+  resolveServiceEndpointFromCard,
+  decodeAgentCard,
+} from "./main-track-negotiation.server.ts";
 import type { LiveAgentHirePorts } from "./main-track-negotiation.server.ts";
 
 const SELLER = "0xB0f7681668f916eEd97dA066D31aA295D34727c0";
@@ -438,6 +442,76 @@ async function main(): Promise<void> {
     check(
       "2b. Agent 1906 (dead endpoint) does not block dynamic hire",
       agent1906.ok === false && /endpoint/.test(agent1906.reason ?? "")
+    );
+  }
+
+  // 2c. X.162: Agent Card → ERC-8183 endpoint resolution (pure, read-only).
+  {
+    const erc8183 = resolveServiceEndpointFromCard({
+      services: [
+        {
+          name: "ERC-8183",
+          endpoint: "https://range-keeper.103-195-188-198.sslip.io/erc8183",
+          version: "v1",
+        },
+      ],
+    });
+    check(
+      "2c. ERC-8183 service endpoint resolved (not A2A-only)",
+      erc8183.endpoint === "https://range-keeper.103-195-188-198.sslip.io/erc8183"
+    );
+    const a2a = resolveServiceEndpointFromCard({
+      services: [{ name: "A2A", endpoint: "https://a2a.example.com/erc8183" }],
+    });
+    check("2c. A2A service endpoint resolved", a2a.endpoint === "https://a2a.example.com/erc8183");
+    const webFallback = resolveServiceEndpointFromCard({
+      services: [{ name: "Web", endpoint: "https://web.example.com/erc8183" }],
+    });
+    check(
+      "2c. other HTTPS registered service resolved (fallback)",
+      webFallback.endpoint === "https://web.example.com/erc8183"
+    );
+    check(
+      "2c. http:// (non-HTTPS) rejected",
+      resolveServiceEndpointFromCard({
+        services: [{ name: "ERC-8183", endpoint: "http://range-keeper.example" }],
+      }).endpoint === null
+    );
+    check(
+      "2c. arbitrary/non-http scheme rejected",
+      resolveServiceEndpointFromCard({
+        services: [{ name: "ERC-8183", endpoint: "ftp://x.example" }],
+      }).endpoint === null
+    );
+    check(
+      "2c. no services -> fail closed",
+      resolveServiceEndpointFromCard({ services: [] }).endpoint === null
+    );
+    check("2c. null card -> fail closed", resolveServiceEndpointFromCard(null).endpoint === null);
+    check(
+      "2c. no endpoint key -> fail closed",
+      resolveServiceEndpointFromCard({ services: [{ name: "ERC-8183" }] }).endpoint === null
+    );
+    // The real Agent 2005 on-chain card (base64 data URI) decodes to the service.
+    const realCard = decodeAgentCard(
+      "data:application/json;base64," +
+        Buffer.from(
+          JSON.stringify({
+            name: "Canned Range Keeper",
+            services: [
+              {
+                name: "ERC-8183",
+                endpoint: "https://range-keeper.103-195-188-198.sslip.io/erc8183",
+              },
+            ],
+          }),
+          "utf8"
+        ).toString("base64")
+    );
+    const real = resolveServiceEndpointFromCard(realCard);
+    check(
+      "2c. Agent 2005 card decodes to ERC-8183 endpoint",
+      real.endpoint === "https://range-keeper.103-195-188-198.sslip.io/erc8183"
     );
   }
 
