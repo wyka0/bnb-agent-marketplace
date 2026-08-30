@@ -114,6 +114,42 @@ Expected dashboard for the buyer wallet:
 
 No false ACTIVE claim. No transaction is sent by the dashboard or its API.
 
+## Deployment
+
+- Commit: `0666ff36ac9acec8a4c40683890839263af8459f` (`0666ff3` "X.168 dashboard
+  FUNDED-hire visibility via read-only on-chain state")
+- origin/main: `0666ff36ac9acec8a4c40683890839263af8459f`
+- Production URL: https://bnb-agent-marketplace-web.vercel.app
+- Vercel deployment: auto-deployed from the main-branch push; deployment id
+  observed in the response header `x-vercel-id` → `1de9e76f66ae` (segment
+  `...-1de9e76f66ae`), served from `bom1::iad1`.
+- Deployment status: Ready (production endpoints serve the new build).
+
+### Read-only production verification (no wallet session)
+
+| Check                                  | Result                                                                                                                                                                          |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                                    | 200                                                                                                                                                                             |
+| `/marketplace`                         | 200                                                                                                                                                                             |
+| `/dashboard`                           | 200; HTML contains "Your hired agents", "Funded hires", "Active agents", "Total value", "Net P&L" (`Net P&amp;L` in HTML), "No agents hired yet" (empty state without a wallet) |
+| `/api/dashboard/hires`                 | 200; no-wallet contract `{ok:true,data:{hires:[],activeAgents:0,fundedHires:0,...,totalValue:"0.00 BNB",netPnl:"Not available",connected:false,state:"no-wallet"}}`             |
+| `/agents/97:0x8004A818…:2005`          | 200; "Canned Range Keeper", "Hire", "BSC Testnet", "never receives your private key"                                                                                            |
+| `/agents/97:0x8004A818…:2005/hire`     | 200                                                                                                                                                                             |
+| On-chain Job 787 (PublicNode read)     | `client 0x299Ce411…`, `provider 0x0eAc2F4d…` (Agent 2005 owner), `budget 1000000000000000` (= 0.001 U), `status 1` = FUNDED, chain 97                                           |
+| Provider → agent resolution (8004scan) | `registered` → agentId `97:0x8004a818…:2005`, name "Canned Range Keeper", token 2005                                                                                            |
+
+The authenticated buyer-wallet dashboard view cannot be replicated here (the
+session cookie lives in the buyer's browser). The verified server feed contract
+above plus the passing resolver harness (FUNDED job → shown, activeAgents 0,
+never ACTIVE) cover that path. With the buyer wallet
+`0x299Ce4113abF88F4997737184aa8A7a3D58AC15C` connected, the dashboard resolves
+Job 787 as a funded hire: **Canned Range Keeper · FUNDED · Job 787 · 0.001 U ·
+BSC Testnet**, with `Active agents: 0` and `Funded hires: 1`.
+
+Note: an unrelated Job 788 was observed on-chain (different client/provider,
+budget 0, FUNDED). It pre-existed; X.168 ran zero transactions and did not
+create or modify it.
+
 ## Constraints honored
 
 - No transaction created or executed; Agent 2005 not re-hired; Job 788 not
