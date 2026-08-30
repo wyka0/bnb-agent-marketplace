@@ -43,7 +43,8 @@
     "altana:session:live:verify": "node --experimental-strip-types lib/altana-session/session.live.verify.ts",
     "format": "prettier --write .",
     "clean": "rm -rf .next",
-    "activation:main-track-user-hire:verify": "node --experimental-strip-types lib/activation/main-track-user-hire.verify.ts"
+    "activation:main-track-user-hire:verify": "node --experimental-strip-types lib/activation/main-track-user-hire.verify.ts",
+    "dashboard:hires:verify": "node --experimental-strip-types lib/dashboard/hired-agents.verify.ts"
   },
   "dependencies": {
     "@altananetwork/sdk": "0.7.0",

@@ -104,6 +104,14 @@ export const RATE_LIMIT_POLICIES = [
     scope: "global",
     rationale: "unauthenticated public RPC oracle",
   },
+  {
+    route: "dashboard.hires",
+    limitPerWindow: 120,
+    windowSeconds: 60,
+    scope: "identity",
+    rationale:
+      "authenticated dashboard read: bounded on-chain job scan + registry resolution, polling-friendly",
+  },
 ] as const satisfies readonly RateLimitPolicy[];
 
 export type RateLimitOutcome = {
