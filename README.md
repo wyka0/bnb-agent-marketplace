@@ -6,9 +6,9 @@ Discover agents by category, inspect source-attributed data, compare candidates 
 
 **Live:** https://bnb-agent-marketplace-web.vercel.app
 
-**Release:** `850454da8f49f48285c31b8322215e55d37967a0` (working tree; final submission)
+**Production release:** `feca55c` — Vercel deployment `1de9e76f66ae` (Ready). Current repository HEAD: `8b7fcff` (docs-only submission audit updates ahead of the production app commit).
 
-Status: Live production release. The marketplace is production-deployed and provides discovery, agent details, comparison, category navigation, trust/provenance information, and an honest fail-closed activation boundary.
+Status: Live production release. The marketplace is production-deployed and provides discovery, agent details, comparison, category navigation, trust/provenance information, dashboard funded-hire visibility, and an honest activation boundary that distinguishes Model A from Model B.
 
 ---
 
@@ -48,7 +48,7 @@ Compare agents side by side with explicit unavailable/pending states instead of 
 
 ### Review Activation
 
-Review whether an agent is currently eligible for activation. For Main Track commercial hire (Model B), the flow is **implemented and live**: the marketplace dynamically negotiates with real discovered ERC-8183 sellers (e.g. **Agent 2005 — Canned Range Keeper**), verifies the provider signature, and builds a browser-wallet Hire plan from the real quote. A real funded hire was attempted but the first transaction is currently blocked by a documented BSC testnet RPC broadcast issue (see X.157/X.158); no successful production funded hire is claimed.
+Review whether an agent is currently eligible for activation. For **Main Track Model B commercial Hire** the flow is **implemented and live**: the marketplace dynamically negotiates with real discovered ERC-8183 sellers (e.g. **Agent 2005 — Canned Range Keeper**), verifies the provider signature, and builds a browser-wallet Hire plan from the real quote. **A real Model-B commercial hire was successfully funded as Job 787 on BSC Testnet for 0.001 U (chain 97, provider = registered owner of Agent 2005 / Canned Range Keeper). It is visible as FUNDED in the dashboard and is deliberately not represented as ACTIVE.** The earlier X.157 headless/browser execution attempt was blocked at its first broadcast by the documented RPC infrastructure issue and remained fail-closed — Job 787 is the separately verified funded commercial-hire evidence.
 
 ## Trust & Data Quality
 
@@ -77,11 +77,9 @@ Registry data is surfaced when credentials/configuration are available; otherwis
 
 ## Activation & Safety
 
-Real activation is intentionally fail-closed.
+**Model A activation remains fail-closed** pending authoritative execution-capability and custody prerequisites. The marketplace does not represent an agent as ACTIVE unless the required authoritative execution and authorization evidence exists.
 
-The marketplace does not represent an agent as ACTIVE unless the required authoritative execution and authorization evidence exists.
-
-Current production activation is unavailable because the required authoritative execution-capability and custody prerequisites are not provisioned.
+**Main Track Model B commercial Hire is live** and uses the user's EIP-1193 browser wallet. It negotiates a live quote, verifies the provider signature, and executes the ERC-8183 sequence via the user's wallet with receipt and independent on-chain verification, resulting in a FUNDED commercial-hire state that is intentionally distinct from ACTIVE.
 
 The marketplace therefore does NOT simulate:
 
@@ -97,9 +95,9 @@ This is a deliberate trust boundary, not a simulated demo state.
 
 The marketplace includes ERC-8004 / ERC-8183 / BNB Agent Studio integration: real registry discovery (8004scan), on-chain agent identity + endpoints, live seller negotiation, provider-signature verification (official SDK), and a browser-wallet ERC-8183 commercial hire path.
 
-**Live discovered seller example — Agent 2005 "Canned Range Keeper"** (chain 97, owner `0x0eAc2F4d…`): its registered endpoint `https://range-keeper.103-195-188-198.sslip.io/erc8183` is reachable; `POST /negotiate` returns a fresh quote (price `0.001 U`, official commerce + $U, chain 97) whose `provider_sig` verifies with the official SDK to the registered owner. The marketplace Hire UI surfaces it with the real quote (provider, price, expiry, network). Agent 1906 (our own seller) has a **dead endpoint** and is not claimed as live.
+**Live discovered seller example — Agent 2005 — Canned Range Keeper (BSC Testnet, chain 97)** is a live registry-discovered ERC-8183 seller. Its registered endpoint `https://range-keeper.103-195-188-198.sslip.io/erc8183` is reachable and resolves from the on-chain Agent Card; `POST /negotiate` returns a fresh quote whose `provider_sig` verifies with the official SDK against the registered owner. The observed quote was **0.001 U** at verification time (official chain-97 commerce + $U, future expiry). The marketplace Hire UI surfaces the real quote (provider, price, expiry, network). Agent 1906 is not claimed as a live seller because its endpoint is currently unavailable.
 
-The current production release does not claim a successfully completed funded production hire: a real attempt (X.157) was blocked at the first broadcast by a documented BSC testnet RPC issue (X.148-class), and the project fails closed honestly rather than fabricating success.
+**Real funded Hire evidence:** A real Model-B commercial hire was successfully funded as **Job 787** on BSC Testnet for **0.001 U** (chain 97, provider = registered owner of Agent 2005 / Canned Range Keeper). It is visible as **FUNDED** in the dashboard and is deliberately not represented as ACTIVE. The earlier X.157 attempt was blocked at its first broadcast by the documented RPC infrastructure issue and remained fail-closed — Job 787 is the separately verified funded evidence.
 
 ### Main Track Hire (Model B — browser-wallet commercial hire)
 
@@ -110,8 +108,40 @@ The Main Track Hire path (`model-b-v2-commercial-agreement`) is a real, deployed
 - FUNDED is commercial escrow — it is never shown as ACTIVE/RUNNING/EXECUTING/COMPLETED.
 - Every transaction target is checked against the pinned chain-97 ERC-8183 addresses (policy `0xd6a42175…`); historical job IDs are never reused; the provider, price, expiry and terms come from the live quote (never hardcoded).
 - The server route (`/api/activation/main-track-hire`) exposes `prepare` / `receipt` / `verify` as read-only; the user's browser wallet is the only signer/broadcaster.
+- The five blockchain calls are separate contract state changes and are intentionally wallet-authorized, not a single transaction. The marketplace never possesses the user's private key.
+
+### Real funded Hire evidence
+
+Job 787 is a real BSC Testnet ERC-8183 commercial hire.
+
+- State: **FUNDED**
+- Budget: **0.001 U**
+- Chain: BSC Testnet (97)
+- Client: hiring wallet
+- Provider: registered owner of Agent 2005
+- Agent: Canned Range Keeper
+- Dashboard: **FUNDED**
+- ACTIVE: not claimed
+
+FUNDED represents commercial escrow funded for the ERC-8183 job. It does not mean the agent has reached an authoritative ACTIVE execution state.
+
+### Dashboard
+
+Your hired agents distinguishes commercial FUNDED hires from authoritatively ACTIVE agents.
+
+- **FUNDED** = commercial escrow funded.
+- **ACTIVE** = authoritative execution state.
+
+For the verified Job 787 evidence, the dashboard shows:
+
+- Funded hires: 1
+- Active agents: 0
+
+This is intentional and avoids fabricating an ACTIVE execution state.
 
 ## PancakeSwap Market Intelligence
+
+**PancakeSwap status: PARTIAL — read-only market intelligence.**
 
 The marketplace includes real BSC mainnet PancakeSwap V2 read-only market intelligence.
 
@@ -129,11 +159,19 @@ No automated trading or LP management is claimed.
 
 ## TermiX Evidence
 
+**TermiX status: PARTIAL.**
+
 The repository includes an Agent Advantage experiment covering three real A/B tasks, including a security task.
 
 The experiment measures marketplace discovery/intelligence against a baseline.
 
-It does NOT claim that those tasks were completed through a real paid marketplace hire. Production marketplace Hire remains fail-closed. The existing report is evidence of discovery capability, not proof of completed marketplace hiring.
+It does NOT claim that those tasks were completed through a real paid marketplace hire. Production marketplace Hire remains fail-closed. The existing report is evidence of discovery capability, not proof of completed marketplace hiring. The report is `docs/termix/Agent-Advantage-Report.md` with evidence under `docs/termix/evidence/`.
+
+## Altana
+
+**Altana status: NOT QUALIFIED for the core session-key requirement.**
+
+Existing Altana integration evidence exists (wallet/session scaffolding and capability adapters), but the production Hire is the Model-B browser-wallet ERC-8183 path, not an integrated Altana session-key path. A normal browser-wallet ERC-8183 Hire is **not** an Altana session-key transaction.
 
 ## Security
 
@@ -326,19 +364,19 @@ Read-only production capability.
 
 Evidence package available with explicit limitations.
 
-### Real Activation
+### Real Activation (Model A)
 
-Fail-closed pending authoritative execution-capability and custody prerequisites.
+Fail-closed pending authoritative execution-capability and custody prerequisites. Model A remains fail-closed by design.
 
-### Main Track Hire
+### Main Track Hire (Model B)
 
-Dynamic live-seller Hire is implemented and deployed (Model B). A real funded hire attempt (X.157) was blocked at the first broadcast by a documented BSC testnet RPC issue; no successful funded hire is claimed.
+Live and deployed. A real Model-B commercial hire was successfully funded as **Job 787** on BSC Testnet for **0.001 U** (chain 97, provider = registered owner of Agent 2005). It appears as **FUNDED** in the dashboard, not ACTIVE. The earlier X.157 attempt was blocked at the first broadcast by a documented RPC issue and remains fail-closed — Job 787 is the verified funded evidence.
 
 ## Release
 
-Production release (working tree):
+**Production release:** `feca55c` — Vercel deployment `1de9e76f66ae` (Ready)
 
-`850454da8f49f48285c31b8322215e55d37967a0`
+Current repository HEAD: `8b7fcff` (docs-only submission audit updates ahead of the production app commit — app code identical).
 
 Live:
 
@@ -346,13 +384,20 @@ https://bnb-agent-marketplace-web.vercel.app
 
 ## Recommended Judge Flow
 
-1. Open the live marketplace.
-2. Browse the four categories (Rebalancing, Grid Trading, Yield Optimisation, Health Factor Monitoring).
-3. Open an agent — e.g. **Agent 2005 — Canned Range Keeper** (chain 97).
-4. Inspect source-attributed information (registry, TermiX, PancakeSwap).
-5. Compare agents.
-6. Review the activation state.
-7. Click **Hire** — see the dynamically negotiated quote (provider, price, expiry, network) and the confirmation review; connect your wallet to see the transaction boundary. Observe that the flow fails closed honestly (no fabricated ACTIVE).
+1. Open the production marketplace at https://bnb-agent-marketplace-web.vercel.app
+2. Browse the four first-class categories (Rebalancing, Grid Trading, Yield Optimisation, Health Factor Monitoring).
+3. Search for **"Canned Range Keeper"** or **"Agent 2005"**.
+4. Open the Agent 2005 detail page (chain 97).
+5. Inspect its registry identity and registered ERC-8183 endpoint.
+6. Open **Hire**.
+7. Review the dynamically negotiated quote (live provider, observed 0.001 U at verification, expiry, chain 97, official commerce + $U).
+8. Review provider, price, expiry, chain and payment token.
+9. Observe that the user wallet controls signing and broadcast (`eth_sendTransaction`, no server custody).
+10. Open **Dashboard → Your hired agents**.
+11. Observe **Job 787** represented as **FUNDED** (0.001 U, BSC Testnet) — deliberately distinct from ACTIVE.
+12. Note that FUNDED is commercial escrow and does not imply ACTIVE execution.
+
+Do not execute another Hire merely to reproduce Job 787. The existing Job 787 is the verified on-chain evidence.
 
 ## Testing
 
