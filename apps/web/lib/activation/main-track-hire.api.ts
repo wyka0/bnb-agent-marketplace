@@ -37,6 +37,7 @@ type MainTrackHireApiBody = {
   jobId?: unknown;
   walletAddress?: unknown;
   txHash?: unknown;
+  expectedBudget?: unknown;
 };
 
 export type MainTrackHireApiResult = {
@@ -75,6 +76,9 @@ export interface MainTrackHireApiDeps {
   verifyUserHire?(input: {
     jobId: string;
     walletAddress: string;
+    agent: Scan8004Agent;
+    /** Exact verified quoted amount (wei) used by the execution plan — dynamic. */
+    expectedBudget: string;
   }): Promise<MainTrackUserHireVerifyOutcome>;
   /** X.149 — marketplace-owned receipt read (PublicNode) for per-step verification. */
   readReceipt?(txHash: string): Promise<MainTrackReceiptRead>;
@@ -218,14 +222,19 @@ export async function mainTrackHireApi(input: {
   if (body.action === "verify") {
     const jobId = typeof body.jobId === "string" ? body.jobId : "";
     const walletAddress = typeof body.walletAddress === "string" ? body.walletAddress : "";
-    if (!/^\d+$/.test(jobId) || !/^0x[0-9a-fA-F]{40}$/.test(walletAddress)) {
+    const expectedBudget = typeof body.expectedBudget === "string" ? body.expectedBudget : "";
+    if (
+      !/^\d+$/.test(jobId) ||
+      !/^0x[0-9a-fA-F]{40}$/.test(walletAddress) ||
+      !/^\d+$/.test(expectedBudget)
+    ) {
       return {
         status: 400,
         body: {
           ok: false,
           error: {
             code: "bad-request",
-            message: "Expected a numeric jobId and a valid connected wallet address.",
+            message: "Expected a numeric jobId, a valid wallet address, and the executed amount.",
           },
           data: { agent: safeAgent(agent), policy: MAIN_TRACK_MODEL_B },
         },
@@ -246,7 +255,12 @@ export async function mainTrackHireApi(input: {
         headers: NO_STORE,
       };
     }
-    const verified = await input.deps.verifyUserHire({ jobId, walletAddress });
+    const verified = await input.deps.verifyUserHire({
+      jobId,
+      walletAddress,
+      agent,
+      expectedBudget,
+    });
     if (!verified.ok) {
       return {
         status: 409,

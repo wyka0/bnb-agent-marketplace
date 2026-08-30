@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { AUTH_CSRF_COOKIE, getAuthConfig } from "@/lib/auth/constants.ts";
 import { getAuthenticatedUser } from "@/lib/auth/session.server.ts";
 import { mainTrackHireApi } from "@/lib/activation/main-track-hire.api.ts";
+import { verifyMainTrackUserHireFunded } from "@/lib/activation/main-track-user-hire.server.ts";
 import { readMainTrackReceipt } from "@/lib/activation/main-track-receipt.server.ts";
 import { prepareLiveAgentHire } from "@/lib/activation/main-track-negotiation.server.ts";
 import { fetchAgentRows, findAgentByIdentity } from "@/lib/activation/hire.server.ts";
@@ -54,11 +55,8 @@ export async function POST(request: Request) {
             agentId: agent.agent_id,
             ownerAddress: agent.owner_address ?? "",
           }),
-        verifyUserHire: async () => ({
-          ok: false,
-          reason:
-            "On-chain verification is not reachable from this deployment; the job was not verified.",
-        }),
+        verifyUserHire: async ({ jobId, walletAddress, agent, expectedBudget }) =>
+          verifyMainTrackUserHireFunded({ jobId, walletAddress, agent, expectedBudget }),
         readReceipt: readMainTrackReceipt,
         ports: {
           resolveMarketplaceClient: async () => {

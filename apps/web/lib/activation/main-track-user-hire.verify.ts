@@ -15,6 +15,7 @@ import {
   MAIN_TRACK_COMMERCE,
   MAIN_TRACK_ROUTER,
   MAIN_TRACK_PAYMENT_TOKEN,
+  createMainTrackNetworkConfig,
 } from "@bnb-marketplace/integrations/altana";
 import {
   MAIN_TRACK_USER_HIRE_STATES,
@@ -29,13 +30,21 @@ import type {
   MainTrackUserHirePlan,
   MainTrackUserHireExpectations,
   MainTrackUserHireJobRead,
+  MainTrackUserHirePrepareOutcome,
 } from "./main-track-user-hire.ts";
+import {
+  verifyMainTrackUserHireFunded,
+  type MainTrackUserHireFundedVerifyPorts,
+  type MainTrackSdkJobRead,
+} from "./main-track-user-hire.server.ts";
 import { prepareLiveAgentHire } from "./main-track-negotiation.server.ts";
 import {
   resolveServiceEndpointFromCard,
   decodeAgentCard,
 } from "./main-track-negotiation.server.ts";
 import type { LiveAgentHirePorts } from "./main-track-negotiation.server.ts";
+import type { Scan8004Agent } from "../eight004scan/types.ts";
+import { readFileSync } from "node:fs";
 
 const SELLER = "0xB0f7681668f916eEd97dA066D31aA295D34727c0";
 const OTHER = "0x1111111111111111111111111111111111111111";
@@ -215,6 +224,88 @@ function fundedJobRead(
     statusName: "FUNDED",
     submittedAt: "0",
     deliverable: "0x" + "00".repeat(32),
+    ...overrides,
+  };
+}
+
+// --- X.167 fixtures: read-only server-path verification (offline ports) ----
+
+function fundedJobFixture(overrides: Partial<Record<string, unknown>> = {}): MainTrackSdkJobRead {
+  return {
+    id: 900n,
+    client: USER,
+    provider: SELLER,
+    budget: BigInt(PRICE),
+    status: 1,
+    statusName: "FUNDED",
+    submittedAt: 0n,
+    deliverable: "0x" + "00".repeat(32),
+    ...overrides,
+  } as MainTrackSdkJobRead;
+}
+
+function agentFixture(overrides: Partial<Scan8004Agent> = {}): Scan8004Agent {
+  return {
+    id: "2005",
+    agent_id: AGENT2005,
+    token_id: "2005",
+    chain_id: 97,
+    chain_type: "evm",
+    contract_address: MAIN_TRACK_COMMERCE,
+    is_testnet: true,
+    owner_id: "owner-1",
+    owner_address: SELLER,
+    owner_ens: null,
+    owner_username: null,
+    owner_avatar_url: null,
+    owner_publisher_tier: null,
+    owner_certified_name: null,
+    name: "Canned Range Keeper",
+    description: null,
+    image_url: null,
+    is_verified: true,
+    star_count: 0,
+    supported_protocols: [],
+    x402_supported: false,
+    total_score: 0,
+    rank: null,
+    network_rank: null,
+    health_score: null,
+    total_feedbacks: 0,
+    average_score: 0,
+    cross_chain_versions: null,
+    created_at: "",
+    updated_at: "",
+    ...overrides,
+  };
+}
+
+const QUOTE_UNAVAILABLE = { ok: false, reason: "endpoint unreachable" } as const;
+
+function fundedVerifyPorts(
+  overrides: Partial<MainTrackUserHireFundedVerifyPorts> = {}
+): MainTrackUserHireFundedVerifyPorts {
+  return {
+    readPaymentToken: async () => MAIN_TRACK_PAYMENT_TOKEN,
+    readJob: async () => fundedJobFixture(),
+    negotiate: async () => QUOTE_UNAVAILABLE as unknown as MainTrackUserHirePrepareOutcome,
+    ...overrides,
+  };
+}
+
+function fundedVerifyInput(
+  overrides: Partial<{
+    jobId: string;
+    walletAddress: string;
+    agent: Scan8004Agent;
+    expectedBudget: string;
+  }> = {}
+) {
+  return {
+    jobId: "900",
+    walletAddress: USER,
+    agent: agentFixture(),
+    expectedBudget: PRICE,
     ...overrides,
   };
 }
@@ -723,6 +814,7 @@ async function main(): Promise<void> {
       expectedClient: USER.toLowerCase(),
       expectedProvider: SELLER.toLowerCase(),
       expectedToken: MAIN_TRACK_PAYMENT_TOKEN,
+      expectedBudget: PRICE,
     });
     check("11. final verification success", out.ok === true);
     if (out.ok) {
@@ -740,6 +832,7 @@ async function main(): Promise<void> {
       expectedClient: USER.toLowerCase(),
       expectedProvider: SELLER.toLowerCase(),
       expectedToken: MAIN_TRACK_PAYMENT_TOKEN,
+      expectedBudget: PRICE,
     };
     const notFound = verifyMainTrackUserHireFinalState({ ...base, job: null });
     check("12. job not found", notFound.ok === false);
@@ -1062,6 +1155,283 @@ async function main(): Promise<void> {
         out.ok === false && out.state === "failed" && mock.sends.length === 4 && approveSent
       );
     }
+  }
+
+  // 17. X.166 — production scenario: the executor completes ALL 5 steps, then the
+  // read-only final verify (a separate, fail-closed stub) reports not-ok. The
+  // executor must NOT stop early and must release the in-flight guard so a later
+  // legitimate attempt can still run. This refutes the "stopped at a later step"
+  // hypothesis: the hire fully completed on-chain; only verification failed.
+  {
+    const { plan, expectations } = planFromPrepare();
+    const mock = mockWallet();
+    const out = await runMainTrackUserHireFromWallet({
+      request: mock.request,
+      plan,
+      expectations,
+      confirmStep: async () => true,
+      verifyStep: async () => ({ ok: true }),
+      receiptMaxAttempts: 1,
+      receiptIntervalMs: 1,
+      attemptToken: "x166-complete",
+    });
+    check(
+      "17.1 all 5 steps broadcast and completed (executor did NOT stop early)",
+      out.ok === true && mock.sends.length === 5
+    );
+    check(
+      "17.1 every step returned a tx hash (full sequence ran)",
+      typeof out.txHashes === "object" && Object.keys(out.txHashes ?? {}).length === 5
+    );
+    // The in-flight guard must be released after a terminal (success) outcome,
+    // otherwise a correct later attempt would be wrongly blocked.
+    const mock2 = mockWallet();
+    const out2 = await runMainTrackUserHireFromWallet({
+      request: mock2.request,
+      plan,
+      expectations,
+      confirmStep: async () => true,
+      verifyStep: async () => ({ ok: true }),
+      receiptMaxAttempts: 1,
+      receiptIntervalMs: 1,
+      attemptToken: "x166-complete",
+    });
+    check(
+      "17.1 in-flight guard released after success (no false block, no duplicate-job risk)",
+      out2.ok === true && mock2.sends.length === 5
+    );
+
+    // The read-only verify failure maps to the exact production message and
+    // triggers zero additional broadcasts.
+    const message = mainTrackUserHireErrorMessage({ state: "verify-failed", step: "fund" });
+    check(
+      "17.2 verify-failure maps to the exact production 'Job created…' message",
+      message ===
+        "Job created, but Hire could not be safely completed. No additional transaction was submitted."
+    );
+    check(
+      "17.2 read-only verify adds no broadcast (still exactly 5 sends)",
+      mock.sends.length === 5
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // 18. X.167 — Model-B read-only final verification (dynamic price).
+  //     No signer, no private key, no KMS, no custody, no broadcast.
+  // -------------------------------------------------------------------------
+  {
+    // 18.1 — Agent 2005's real quote: 0.001 U = 1000000000000000 wei.
+    const milli = "1000000000000000";
+    const out = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput({ expectedBudget: milli }),
+      fundedVerifyPorts({ readJob: async () => fundedJobFixture({ budget: BigInt(milli) }) })
+    );
+    check("18.1 0.001 U dynamic quote verifies FUNDED", out.ok === true);
+    if (out.ok) {
+      check(
+        "18.1 activationState funded-commercial-hire + active:false",
+        out.activationState.state === "funded-commercial-hire" && out.active === false
+      );
+    }
+    check(
+      "18.1 no custody needed (read-only verified without any custody)",
+      out.ok === true && /custody/i.test(out.ok ? "" : (out.reason ?? "")) === false
+    );
+
+    // 18.2 — 1 U quote still verifies.
+    const one = await verifyMainTrackUserHireFunded(fundedVerifyInput(), fundedVerifyPorts());
+    check("18.2 1 U quote verifies FUNDED", one.ok === true);
+
+    // 18.3 — another arbitrary valid quote (0.25 U) verifies.
+    const quarter = "250000000000000000";
+    const arb = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput({ expectedBudget: quarter }),
+      fundedVerifyPorts({ readJob: async () => fundedJobFixture({ budget: BigInt(quarter) }) })
+    );
+    check("18.3 arbitrary quote verifies FUNDED", arb.ok === true);
+
+    // 18.4 — wrong expected amount fails closed (0.001 U job, expected 1 U).
+    const wrongAmount = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({ readJob: async () => fundedJobFixture({ budget: 1000000000000000n }) })
+    );
+    check(
+      "18.4 wrong expected amount fails closed",
+      wrongAmount.ok === false && /budget/.test(wrongAmount.reason ?? "")
+    );
+
+    // 18.5 — wrong job fails closed.
+    const wrongJob = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput({ jobId: "999" }),
+      fundedVerifyPorts({ readJob: async () => fundedJobFixture() })
+    );
+    check(
+      "18.5 wrong job fails closed",
+      wrongJob.ok === false && /not found/.test(wrongJob.reason ?? "")
+    );
+
+    // 18.6 — wrong buyer fails closed.
+    const wrongBuyer = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput({ walletAddress: OTHER }),
+      fundedVerifyPorts()
+    );
+    check(
+      "18.6 wrong buyer fails closed",
+      wrongBuyer.ok === false && /client/.test(wrongBuyer.reason ?? "")
+    );
+
+    // 18.7 — wrong provider fails closed.
+    const wrongProvider = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({
+        readJob: async () => fundedJobFixture({ provider: OTHER }),
+      })
+    );
+    check(
+      "18.7 wrong provider fails closed",
+      wrongProvider.ok === false && /provider/.test(wrongProvider.reason ?? "")
+    );
+
+    // 18.8 — wrong payment token fails closed.
+    const wrongToken = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({ readPaymentToken: async () => OTHER })
+    );
+    check(
+      "18.8 wrong token fails closed",
+      wrongToken.ok === false && /token/.test(wrongToken.reason ?? "")
+    );
+
+    // 18.9 — wrong commerce fails closed (injected network config).
+    const wrongCommerce = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({
+        network: { ...createMainTrackNetworkConfig(), commerceContract: OTHER },
+      })
+    );
+    check(
+      "18.9 wrong commerce fails closed",
+      wrongCommerce.ok === false && /commerce/.test(wrongCommerce.reason ?? "")
+    );
+
+    // 18.10 — OPEN (not funded) job is NOT funded.
+    const open = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({
+        readJob: async () => fundedJobFixture({ status: 0, statusName: "OPEN" }),
+      })
+    );
+    check("18.10 OPEN job is not funded", open.ok === false && /FUNDED/.test(open.reason ?? ""));
+
+    // 18.11 — FUNDED job succeeds (explicit).
+    const funded = await verifyMainTrackUserHireFunded(fundedVerifyInput(), fundedVerifyPorts());
+    check("18.11 FUNDED job verifies success", funded.ok === true);
+
+    // 18.12 — RPC unavailable yields an HONEST verification error (not a false failure claim).
+    const rpcDown = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({
+        readJob: async () => {
+          throw new Error("rpc timeout");
+        },
+      })
+    );
+    check(
+      "18.12 RPC unavailable -> honest verification error",
+      rpcDown.ok === false &&
+        /could not read job/.test(rpcDown.reason ?? "") &&
+        /RPC unavailable/.test(rpcDown.reason ?? "")
+    );
+    const tokenDown = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({
+        readPaymentToken: async () => {
+          throw new Error("rpc timeout");
+        },
+      })
+    );
+    check(
+      "18.12 paymentToken RPC unavailable -> honest verification error",
+      tokenDown.ok === false && /could not read commerce payment token/.test(tokenDown.reason ?? "")
+    );
+
+    // 18.13 — seller quote endpoint mismatch fails closed…
+    const quoteMismatch = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput({ expectedBudget: PRICE }),
+      fundedVerifyPorts({
+        negotiate: async () =>
+          ({ ok: true, price: "1000000000000000" }) as unknown as MainTrackUserHirePrepareOutcome,
+      })
+    );
+    check(
+      "18.13 live quote mismatch fails closed",
+      quoteMismatch.ok === false && /quoted price/.test(quoteMismatch.reason ?? "")
+    );
+
+    // 18.14 — …but an unreachable quote endpoint still accepts the on-chain FUNDED record.
+    const quoteDown = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({
+        negotiate: async () => {
+          throw new Error("endpoint timeout");
+        },
+      })
+    );
+    check(
+      "18.14 quote endpoint unavailable -> on-chain FUNDED still accepted",
+      quoteDown.ok === true
+    );
+
+    // 18.15 — already-submitted job is blocked (fresh-funding guard).
+    const submitted = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({ readJob: async () => fundedJobFixture({ submittedAt: 1787000000n }) })
+    );
+    check(
+      "18.15 already-submitted job blocked",
+      submitted.ok === false && /submitted/.test(submitted.reason ?? "")
+    );
+
+    // 18.16 — non-zero deliverable is blocked.
+    const deliverableSet = await verifyMainTrackUserHireFunded(
+      fundedVerifyInput(),
+      fundedVerifyPorts({
+        readJob: async () => fundedJobFixture({ deliverable: "0x" + "11".repeat(32) }),
+      })
+    );
+    check(
+      "18.16 non-zero deliverable blocked",
+      deliverableSet.ok === false && /deliverable/.test(deliverableSet.reason ?? "")
+    );
+
+    // 18.17 — the read-only server path contains NO private key / no raw broadcast.
+    const serverSource = readFileSync(
+      new URL("./main-track-user-hire.server.ts", import.meta.url),
+      "utf8"
+    );
+    check(
+      "18.17 server verifier has no private-key handling",
+      /privateKey|signTransaction|sendRawTransaction|eth_sendRawTransaction/i.test(serverSource) ===
+        false
+    );
+    check(
+      "18.17 server verifier performs only public chain reads",
+      /getErc8183Job/.test(serverSource) === true
+    );
+
+    // 18.18 — dynamic-verify equivalence at the pure layer: same budget both ways.
+    const pure = verifyMainTrackUserHireFinalState({
+      jobId: "900",
+      job: fundedJobRead(),
+      expectedClient: USER.toLowerCase(),
+      expectedProvider: SELLER.toLowerCase(),
+      expectedToken: MAIN_TRACK_PAYMENT_TOKEN,
+      expectedBudget: PRICE,
+    });
+    check(
+      "18.18 pure final-state verify still passes with dynamic expectedBudget",
+      pure.ok === true
+    );
   }
 
   if (failures === 0) {

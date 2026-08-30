@@ -54,7 +54,10 @@ export const USER_HIRE_ALLOWLIST = [
 ] as const;
 
 export const USER_HIRE_CHAIN_ID = 97;
-export const USER_HIRE_PRICE_WEI = "1000000000000000000"; // exactly 1 U
+// NOTE (X.167): the expected budget for final verification is NO LONGER a
+// hardcoded constant. It is the exact verified quoted amount from the execution
+// plan (dynamic), so a 0.001 U Agent-2005 quote verifies correctly, as does any
+// other valid seller quote. See `verifyMainTrackUserHireFinalState(expectedBudget)`.
 
 /**
  * X.165 — execution-attempt idempotency guard. At most ONE `runMainTrackUserHireFromWallet`
@@ -458,8 +461,9 @@ export type MainTrackUserHireVerifyOutcome =
 /**
  * Verify the final on-chain state after funding (server-side, read-only).
  * Requires: client == connected user wallet, provider == verified seller,
- * budget == exactly 1 U, status == FUNDED, submittedAt == 0, deliverable zero,
- * and the expected payment token. Never fabricates ACTIVE.
+ * budget == expectedBudget (the exact quoted/executed amount — DYNAMIC, not a
+ * hardcoded 1 U), status == FUNDED, submittedAt == 0, deliverable zero, and
+ * the expected payment token. Never fabricates ACTIVE.
  */
 export function verifyMainTrackUserHireFinalState(input: {
   jobId: string;
@@ -467,6 +471,8 @@ export function verifyMainTrackUserHireFinalState(input: {
   expectedClient: string;
   expectedProvider: string;
   expectedToken: string;
+  /** Exact verified quoted amount (wei) used by the execution plan — dynamic. */
+  expectedBudget: string;
 }): MainTrackUserHireVerifyOutcome {
   const { job } = input;
   if (!job || String(job.jobId) !== String(input.jobId)) {
@@ -481,8 +487,16 @@ export function verifyMainTrackUserHireFinalState(input: {
   if (job.provider.toLowerCase() !== input.expectedProvider.toLowerCase()) {
     return { ok: false, reason: "funded job provider does not match the verified seller" };
   }
-  if (job.budget !== USER_HIRE_PRICE_WEI) {
-    return { ok: false, reason: "funded job budget is not exactly 1 U" };
+  if (job.budget !== input.expectedBudget) {
+    return {
+      ok: false,
+      reason:
+        "funded job budget does not match the executed/quoted amount (expected " +
+        input.expectedBudget +
+        ", got " +
+        job.budget +
+        ")",
+    };
   }
   if (job.submittedAt !== "0" && job.submittedAt !== "0x0") {
     return { ok: false, reason: "job is already submitted; not a fresh funded hire" };

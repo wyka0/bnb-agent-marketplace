@@ -31,7 +31,14 @@ type HireStepState =
   | { kind: "preparing" }
   | { kind: "review" }
   | { kind: "running"; step: MainTrackUserHireStep | null; label?: string }
-  | { kind: "funded"; jobId: string; txHashes: Record<string, string> }
+  | {
+      kind: "funded";
+      jobId: string;
+      txHashes: Record<string, string>;
+      budget?: string;
+      provider?: string;
+      client?: string;
+    }
   | { kind: "cancelled" }
   | { kind: "failed"; message: string };
 
@@ -190,14 +197,21 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
             agentId: agent.slug,
             jobId: plan.jobId,
             walletAddress: outcome.wallet,
+            expectedBudget: plan.price,
           }),
         });
-        const body = (await response.json()) as ApiEnvelope<{ jobId: string }>;
+        const body = (await response.json()) as ApiEnvelope<{
+          jobId: string;
+          budget?: string;
+          provider?: string;
+          client?: string;
+        }>;
         if (!response.ok || !body.ok) {
           setState({
             kind: "failed",
             message:
-              "Job created, but Hire could not be safely completed. No additional transaction was submitted.",
+              body.error?.message ??
+              "Hire could not be confirmed funded on-chain. No additional transaction was submitted.",
           });
           return;
         }
@@ -205,12 +219,15 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
           kind: "funded",
           jobId: body.data?.jobId ?? plan.jobId,
           txHashes: outcome.txHashes,
+          budget: body.data?.budget,
+          provider: body.data?.provider,
+          client: body.data?.client,
         });
       } catch {
         setState({
           kind: "failed",
           message:
-            "Job created, but Hire could not be safely completed. No additional transaction was submitted.",
+            "Hire verification could not be completed (network error). No additional transaction was submitted.",
         });
       }
     } finally {
@@ -275,12 +292,26 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
         {state.kind === "funded" ? (
           <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
             <div className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-400">
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Funded commercial hire
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Hire funded successfully
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Job {state.jobId} is funded ({plan ? plan.review.price : "escrow"} held) and verified
-              on-chain. It is commercial escrow — NOT active or running. Submit/settle require
-              separate authorization.
+            <dl className="mt-2 space-y-1 text-xs">
+              <Row k="Job" v={state.jobId} />
+              <Row
+                k="Amount"
+                v={
+                  state.budget
+                    ? `${formatAmount(state.budget)} U escrow held`
+                    : plan
+                      ? `${plan.review.price} escrow held`
+                      : "escrow held"
+                }
+              />
+              <Row k="Seller" v={state.provider ?? (plan ? plan.seller : "")} />
+              <Row k="Chain" v="BSC Testnet (97)" />
+            </dl>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Verified on-chain as a funded commercial hire. It is commercial escrow — NOT active or
+              running. Submit/settle require separate authorization.
             </p>
           </div>
         ) : null}
@@ -322,4 +353,15 @@ function Row({ k, v }: { k: string; v: string }) {
       <dd className="break-all text-right font-medium text-foreground">{v}</dd>
     </div>
   );
+}
+
+function formatAmount(wei: string): string {
+  try {
+    const v = BigInt(wei);
+    const whole = v / 10n ** 18n;
+    const frac = (v % 10n ** 18n).toString().padStart(18, "0").replace(/0+$/, "");
+    return frac ? `${whole}.${frac}` : `${whole}`;
+  } catch {
+    return wei;
+  }
 }
