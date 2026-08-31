@@ -144,6 +144,9 @@ const SORT_OPTIONS = [
   { value: "alphabetical", label: "Alphabetical" },
 ];
 
+/** Stable DOM id for the marketplace search input (header search targets it). */
+export const MARKETPLACE_SEARCH_INPUT_ID = "marketplace-search-input";
+
 /** Toggle a value inside a string-set, returning a new Set. */
 function toggleInSet(set: Set<string>, value: string): Set<string> {
   const next = new Set(set);
@@ -240,6 +243,17 @@ export function MarketplaceView({
     () => new URLSearchParams(searchParams.toString())
   );
   const [query, setQuery] = React.useState(() => initial.get("q") ?? "");
+  // X.204 — when the header search navigates here with ?focus=1, focus the
+  // live search input after mount (uses the stable id the header targets).
+  React.useEffect(() => {
+    if (searchParams.get("focus") === "1") {
+      const el = document.getElementById(MARKETPLACE_SEARCH_INPUT_ID);
+      if (el instanceof HTMLInputElement) {
+        el.focus();
+        el.select();
+      }
+    }
+  }, [searchParams]);
   // Default selection is "Featured" — meaningful to users (Sprint 2B polish FIX 1).
   const [sort, setSort] = React.useState<string>(() =>
     readOne(
@@ -688,6 +702,7 @@ export function MarketplaceView({
             value={query}
             onChange={setQuery}
             placeholder="Search the live ERC-8004 registry…"
+            inputId={MARKETPLACE_SEARCH_INPUT_ID}
           />
           <RegistryStatusCount
             ready={catalogReady}

@@ -5,7 +5,7 @@
  * sync across the web app, worker, and data-access layers.
  */
 
-export const APP_NAME = "BNB Agent Studio Marketplace" as const;
+export const APP_NAME = "BNB Agent Marketplace" as const;
 export const APP_DESCRIPTION =
   "Discover, hire, configure, and monitor AI agents on BNB Chain." as const;
 

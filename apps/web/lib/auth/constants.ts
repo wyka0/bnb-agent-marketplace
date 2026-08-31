@@ -1,5 +1,5 @@
 export const AUTH_CHAIN_ID = 97;
-export const AUTH_STATEMENT = "Sign in to BNB Agent Studio Marketplace.";
+export const AUTH_STATEMENT = "Sign in to BNB Agent Marketplace.";
 export const AUTH_NONCE_TTL_MS = 5 * 60 * 1000;
 export const AUTH_ATTEMPT_COOKIE = "__Host-siwe_attempt";
 export const AUTH_SESSION_COOKIE = "__Host-bnb_session";
@@ -26,7 +26,11 @@ export function getAuthConfig() {
   }
 
   const sessionTtlSeconds = Number(process.env.AUTH_SESSION_TTL_SECONDS ?? 604_800);
-  if (!Number.isInteger(sessionTtlSeconds) || sessionTtlSeconds < 900 || sessionTtlSeconds > 2_592_000) {
+  if (
+    !Number.isInteger(sessionTtlSeconds) ||
+    sessionTtlSeconds < 900 ||
+    sessionTtlSeconds > 2_592_000
+  ) {
     throw new Error("AUTH_SESSION_TTL_SECONDS is outside the supported range.");
   }
 

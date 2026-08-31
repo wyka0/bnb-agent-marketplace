@@ -11,8 +11,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "BNB Agent Studio Marketplace",
-    template: "%s | BNB Agent Studio Marketplace",
+    default: "BNB Agent Marketplace",
+    template: "%s | BNB Agent Marketplace",
   },
   description: APP_DESCRIPTION,
 };

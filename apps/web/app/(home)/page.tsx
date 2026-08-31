@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   description:
     "Discover, compare, hire, and monitor trusted AI agents built on BNB Chain. Permissioned by design, verified by registry, and monitored with real-time on-chain data.",
   openGraph: {
-    title: "BNB Agent Studio Marketplace",
+    title: "BNB Agent Marketplace",
     description:
       "The official marketplace for autonomous AI agents on BNB Chain — discover, compare, hire, and monitor.",
     type: "website",
@@ -50,8 +50,7 @@ export default async function HomePage() {
     getBscCategoryDiscovery({ maxPerCategory: 100 }),
   ]);
 
-  const featuredCards =
-    data.state === "ready" ? data.agents.slice(0, 6).map(toAgentCardData) : [];
+  const featuredCards = data.state === "ready" ? data.agents.slice(0, 6).map(toAgentCardData) : [];
 
   return (
     <React.Suspense fallback={null}>

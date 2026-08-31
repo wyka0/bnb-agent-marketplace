@@ -62,6 +62,11 @@ export interface SearchInputProps {
   label?: string;
   onSubmit?: (value: string) => void;
   className?: string;
+  /** Stable external id — when provided, overrides the generated id so the
+   * header search button can focus this input across navigations. */
+  inputId?: string;
+  /** Ref forwarded to the underlying <input> for programmatic focus. */
+  inputRef?: React.Ref<HTMLInputElement>;
 }
 
 export function SearchInput({
@@ -71,8 +76,11 @@ export function SearchInput({
   label = "Search the live ERC-8004 registry",
   onSubmit,
   className,
+  inputId,
+  inputRef,
 }: SearchInputProps) {
-  const id = React.useId();
+  const generatedId = React.useId();
+  const id = inputId ?? generatedId;
   return (
     <div className={cn("relative flex-1 lg:max-w-[520px]", className)}>
       <label htmlFor={id} className="sr-only">
@@ -83,6 +91,7 @@ export function SearchInput({
         aria-hidden="true"
       />
       <input
+        ref={inputRef}
         id={id}
         type="search"
         role="searchbox"

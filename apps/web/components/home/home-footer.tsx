@@ -50,13 +50,13 @@ export function HomeFooter() {
             <Link
               href="/"
               className="flex items-center gap-2.5"
-              aria-label="BNB Agent Studio Marketplace home"
+              aria-label="BNB Agent Marketplace home"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-black text-primary-foreground">
-                B
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-black tracking-tight text-primary-foreground">
+                BNB
               </span>
               <span className="flex flex-col leading-tight">
-                <span className="text-sm font-bold tracking-tight">Agent Studio</span>
+                <span className="text-sm font-bold tracking-tight">Agent</span>
                 <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
                   Marketplace
                 </span>
@@ -120,7 +120,7 @@ export function HomeFooter() {
           </ul>
 
           <div className="flex flex-col items-start gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <p>© {new Date().getFullYear()} BNB Agent Studio Marketplace. Built on BNB Chain.</p>
+            <p>© {new Date().getFullYear()} BNB Agent Marketplace. Built on BNB Chain.</p>
             <p className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
               All systems operational

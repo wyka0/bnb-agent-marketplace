@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, Search, X } from "lucide-react";
 import { NAV_ITEMS } from "@bnb-marketplace/config";
 import { cn } from "@bnb-marketplace/ui";
@@ -21,6 +22,25 @@ const MOBILE_LINKS: readonly { href: string; label: string }[] = [
 
 export function TopNav() {
   const [open, setOpen] = React.useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  /** X.204 — header search opens/focuses the existing marketplace search
+   * (never a second search implementation). On /marketplace it focuses the
+   * live search input directly; elsewhere it navigates to /marketplace and
+   * focuses via the `focus` param (the marketplace preserves its own query
+   * state in the URL, so nothing is lost). */
+  function handleSearch(): void {
+    if (pathname === "/marketplace") {
+      const el = document.getElementById("marketplace-search-input");
+      if (el instanceof HTMLInputElement) {
+        el.focus();
+        el.select();
+        return;
+      }
+    }
+    router.push("/marketplace?focus=1");
+  }
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
@@ -40,17 +60,20 @@ export function TopNav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <a
-            href="#search"
-            aria-label="Jump to search"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          <button
+            type="button"
+            onClick={handleSearch}
+            aria-label="Search marketplace"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-95"
           >
             <Search className="h-5 w-5" aria-hidden="true" />
-          </a>
+          </button>
 
           <ThemeToggle />
 
-          <div className="hidden xl:block"><AuthControls /></div>
+          <div className="hidden xl:block">
+            <AuthControls />
+          </div>
 
           <button
             type="button"

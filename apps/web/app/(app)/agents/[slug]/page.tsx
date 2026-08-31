@@ -47,7 +47,7 @@ export async function generateMetadata({
   if (slug === null || (!isValidSlug(slug) && !isAgentIdSlug(slug))) notFound();
   if (!isAgentIdSlug(slug)) {
     return {
-      title: { absolute: `${titleFromSlug(slug)} | Agent Studio Marketplace` },
+      title: { absolute: `${titleFromSlug(slug)} | BNB Agent Marketplace` },
       description: `Agent details for ${titleFromSlug(slug)}.`,
     };
   }
@@ -55,13 +55,13 @@ export async function generateMetadata({
   if (!agentResult.ok && agentResult.reason === "not-found") notFound();
   if (!agentResult.ok) {
     return {
-      title: { absolute: `${titleFromSlug(slug)} | Agent Studio Marketplace` },
+      title: { absolute: `${titleFromSlug(slug)} | BNB Agent Marketplace` },
       description: `Agent details for ${titleFromSlug(slug)}.`,
     };
   }
   const agent = agentResult.agent;
   return {
-    title: { absolute: `${agent.name} | Agent Studio Marketplace` },
+    title: { absolute: `${agent.name} | BNB Agent Marketplace` },
     description:
       agent.description ?? `Live agent record from the ERC-8004 registry (${agent.slug}).`,
   };
