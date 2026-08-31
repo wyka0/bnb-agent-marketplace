@@ -101,26 +101,28 @@ export function AgentCardStandard({
       )}
 
       <div className="mt-auto">
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
-          <button
-            type="button"
-            onClick={() => onViewDetails?.(agent)}
-            aria-label={`View details for ${agent.name}`}
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-background/60 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            View Details
-            <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
-          </button>
-          {compare ? (
-            <label className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary/30 has-[input:checked]:bg-primary/10 has-[input:checked]:text-primary focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-              <CompareCheckbox
-                checked={compare.selected}
-                onToggle={compare.onToggle}
-                agentName={agent.name}
-              />
-              Compare
-            </label>
-          ) : null}
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onViewDetails?.(agent)}
+              aria-label={`View details for ${agent.name}`}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-background/60 px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              View Details
+              <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+            </button>
+            {compare ? (
+              <label className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary/30 has-[input:checked]:bg-primary/10 has-[input:checked]:text-primary focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                <CompareCheckbox
+                  checked={compare.selected}
+                  onToggle={compare.onToggle}
+                  agentName={agent.name}
+                />
+                Compare
+              </label>
+            ) : null}
+          </div>
           <button
             type="button"
             disabled={!agent.hireable}
@@ -133,9 +135,9 @@ export function AgentCardStandard({
                 ? (agent.hireLabel ?? "Review activation")
                 : agent.hireUnavailableReason
             }
-            className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-[0_0_20px_-6px_hsl(var(--primary)/0.7)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex h-9 w-full max-w-[10rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-[0_0_20px_-6px_hsl(var(--primary)/0.7)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto sm:min-w-[6rem]"
           >
-            {agent.hireable ? (agent.hireLabel ?? "Activate") : "Unavailable"}
+            {agent.hireable ? (agent.hireLabel ?? "Hire") : "Unavailable"}
           </button>
         </div>
       </div>

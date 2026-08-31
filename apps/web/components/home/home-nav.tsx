@@ -20,10 +20,13 @@ export function HomeNav() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center gap-6">
+      <div className="container flex h-16 items-center gap-8">
         <BrandLogo />
 
-        <nav className="hidden flex-1 items-center gap-1 lg:flex" aria-label="Main">
+        <nav
+          className="hidden flex-1 items-center gap-1 border-l border-border/60 pl-6 lg:flex"
+          aria-label="Main"
+        >
           {NAV_LINKS.map((item) => (
             <Link
               key={item.label}

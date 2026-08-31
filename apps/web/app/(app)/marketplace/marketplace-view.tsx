@@ -650,7 +650,7 @@ export function MarketplaceView({
   );
 
   return (
-    <MarketplaceContainer className="py-5">
+    <MarketplaceContainer className="py-6 lg:py-8">
       <Breadcrumbs items={[{ label: "Marketplace" }]} />
 
       <MarketplaceHeader

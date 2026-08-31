@@ -44,19 +44,31 @@ export function TopNav() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center gap-6">
+      <div className="container flex h-16 items-center gap-8">
         <BrandLogo />
 
-        <nav className="hidden flex-1 items-center gap-1 md:flex" aria-label="Main">
-          {NAV_ITEMS.filter((item) => item.href !== "/").map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {item.label}
-            </Link>
-          ))}
+        <nav
+          className="hidden flex-1 items-center gap-1 border-l border-border/60 pl-6 md:flex"
+          aria-label="Main"
+        >
+          {NAV_ITEMS.filter((item) => item.href !== "/").map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
