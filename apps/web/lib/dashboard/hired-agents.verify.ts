@@ -27,6 +27,7 @@ import {
   HIRED_CHAIN_ID,
   HIRED_STATUS_FUNDED,
   HIRED_TYPE_COMMERCIAL,
+  deriveHiredLifecycle,
   noWalletHiresDashboard,
   resolveHiredAgents,
   formatHireBudget,
@@ -242,6 +243,103 @@ async function main(): Promise<void> {
   // Extra: job counter unreadable → honest unavailable state, not fabricated hires.
   const noCounter = await resolve([], { resolveAgent: async () => registered() });
   void noCounter;
+
+  // X.192 — lifecycle (evaluator / expiry), terminal states, P&L honesty.
+  const ROUTER = "0xD7d36D66d2F1B608A0F943f722D27e3744f66F25";
+  const FUTURE = "9999999999999"; // far-future expiredAt (unix seconds)
+  const PAST = "1"; // far-past expiredAt (unix seconds) → expired
+
+  // 16. Evaluator ownership: Router flow → the client wallet is NOT the evaluator.
+  const routerEval = await resolve([fundedJob({ evaluator: ROUTER, expiredAt: FUTURE })]);
+  check(
+    "16 client wallet is not the evaluator (Router flow)",
+    routerEval.hires[0]?.evaluator?.toLowerCase() === ROUTER.toLowerCase() &&
+      routerEval.hires[0]?.lifecycle.isEvaluator === false &&
+      routerEval.hires[0]?.lifecycle.action === "awaiting"
+  );
+
+  // 17. Viewer IS the evaluator (non-expired) → truthful "reject" action, not unhire.
+  const evaluatorView = await resolve([fundedJob({ evaluator: WALLET, expiredAt: FUTURE })], {
+    wallet: WALLET,
+  });
+  check(
+    "17 evaluator wallet gets reject action (not unhire)",
+    evaluatorView.hires[0]?.lifecycle.isEvaluator === true &&
+      evaluatorView.hires[0]?.lifecycle.action === "reject"
+  );
+
+  // 18. Expired funded job → permissionless "claim-refund", no fake ACTIVE.
+  const expiredHire = await resolve([
+    fundedJob({ evaluator: ROUTER, expiredAt: PAST, submittedAt: "0" }),
+  ]);
+  check(
+    "18 expired funded job surfaces claim-refund",
+    expiredHire.hires.length === 1 &&
+      expiredHire.hires[0]?.lifecycle.expired === true &&
+      expiredHire.hires[0]?.lifecycle.action === "claim-refund" &&
+      expiredHire.hires[0]?.status === "FUNDED"
+  );
+
+  // 19. Non-expired, non-evaluator → "awaiting", no executable client action.
+  check(
+    "19 unexpired client hire is awaiting (no invented unhire)",
+    routerEval.hires[0]?.lifecycle.expired === false &&
+      routerEval.hires[0]?.lifecycle.action === "awaiting"
+  );
+
+  // 20. Terminal jobs (COMPLETED / REJECTED / EXPIRED) are NOT shown as funded hires.
+  const completed = await resolve([fundedJob({ status: 3, statusName: "COMPLETED" })]);
+  const rejected = await resolve([fundedJob({ status: 4, statusName: "REJECTED" })]);
+  const expiredStatus = await resolve([fundedJob({ status: 5, statusName: "EXPIRED" })]);
+  check(
+    "20 terminal jobs are not shown as funded hires",
+    completed.hires.length === 0 && rejected.hires.length === 0 && expiredStatus.hires.length === 0
+  );
+
+  // 21. P&L honesty: no dataset → "Not available", never derived from escrow.
+  check(
+    "21 P&L unavailable without performance dataset",
+    expiredHire.netPnl === "Not available" &&
+      expiredHire.totalValue === "0.00 BNB" &&
+      expiredHire.hires[0]?.budgetWei === QUARTER_U
+  );
+
+  // 22. P&L must never equal zero merely because data is missing.
+  check(
+    "22 missing performance data is never shown as zero P&L",
+    expiredHire.netPnl !== "0.00 BNB" &&
+      expiredHire.netPnl !== "0" &&
+      expiredHire.hires[0]?.budgetWei !== expiredHire.netPnl
+  );
+
+  // 23. No transaction invocation / no wallet signature during dashboard load.
+  const dashSource = readFileSync(
+    new URL("../../app/(app)/dashboard/hired-agents-dashboard.tsx", import.meta.url),
+    "utf8"
+  );
+  const apiSource = readFileSync(
+    new URL("../../app/api/dashboard/hires/route.ts", import.meta.url),
+    "utf8"
+  );
+  const resolverSource = readFileSync(new URL("./hired-agents.server.ts", import.meta.url), "utf8");
+  check(
+    "23 no eth_sendTransaction / eth_sign / personal_sign on dashboard load",
+    /eth_sendTransaction|eth_sendRawTransaction|personal_sign|eth_sign|createWalletClient/.test(
+      dashSource + apiSource + resolverSource
+    ) === false
+  );
+
+  // 24. deriveHiredLifecycle is pure and deterministic at a fixed timestamp.
+  const lc = deriveHiredLifecycle({ expiredAt: PAST, evaluator: ROUTER }, WALLET, 1000n);
+  const lc2 = deriveHiredLifecycle({ expiredAt: FUTURE, evaluator: ROUTER }, WALLET, 1000n);
+  check(
+    "24 lifecycle derivation is pure/deterministic",
+    lc.expired === true &&
+      lc.action === "claim-refund" &&
+      lc.isEvaluator === false &&
+      lc2.expired === false &&
+      lc2.action === "awaiting"
+  );
 
   if (failures === 0) {
     console.log("X.168 dashboard funded-hire verify: ALL CHECKS PASSED");

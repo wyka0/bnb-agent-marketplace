@@ -87,6 +87,9 @@ export async function readHiredJobs(
           status: raw.status,
           statusName: JOB_STATUS_NAMES[raw.status] ?? String(raw.status),
           chainId: HIRED_CHAIN_ID,
+          expiredAt: raw.expiredAt?.toString(),
+          evaluator: raw.evaluator,
+          submittedAt: raw.submittedAt?.toString(),
         };
       } catch {
         results[index] = null;

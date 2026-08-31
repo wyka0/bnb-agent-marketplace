@@ -50,6 +50,12 @@ export interface HiredJobRead {
   statusName?: string;
   /** When present must equal the expected chain (defensive wrong-chain gate). */
   chainId?: number;
+  /** Absolute unix seconds; when present, expiry eligibility is derived truthfully. */
+  expiredAt?: string | bigint;
+  /** Job evaluator (the Router acts as evaluator+hook in the Model-B flow). */
+  evaluator?: string;
+  /** On-chain `submittedAt` (unix seconds); 0 until submitted. */
+  submittedAt?: string | bigint;
 }
 
 /** Registry identity resolved for a funded hire's provider. */
@@ -87,6 +93,38 @@ export interface HiredAgent {
   tokenId: string | null;
   /** True when the provider identity could not be confirmed (registry unavailable). */
   identityUnavailable: boolean;
+  /** Job evaluator address (Router in the Model-B flow) — read-only. */
+  evaluator: string | null;
+  /** Absolute unix seconds of job expiry — read-only. */
+  expiredAt: string | null;
+  /** On-chain `submittedAt` (unix seconds); 0 until submitted — read-only. */
+  submittedAt: string | null;
+  /** Truthful, state-dependent lifecycle for the viewing wallet — no invented actions. */
+  lifecycle: HiredLifecycle;
+}
+
+/**
+ * Truthful, state-dependent lifecycle of a FUNDED hire as seen by one wallet.
+ *
+ * ERC-8183 semantics (from the official SDK):
+ *   - `reject(jobId)` — client while OPEN, **evaluator** while FUNDED/SUBMITTED.
+ *   - `claimRefund(jobId)` — **permissionless** after `expiredAt` (no hook).
+ *   - `submit` / `complete` / `settle` — provider / evaluator / router flows.
+ *
+ * FUNDED ≠ ACTIVE, FUNDED ≠ EXECUTED, FUNDED ≠ PROFIT, FUNDED ≠ P&L. The only
+ * action surfaced is the one the current wallet is actually entitled to; every
+ * on-chain action is presented as requiring a wallet signature and is NEVER
+ * executed by the dashboard.
+ */
+export interface HiredLifecycle {
+  /** On-chain state (FUNDED is the only state surfaced as a hire). */
+  state: "funded";
+  /** Whether `expiredAt` has passed (read-only). */
+  expired: boolean;
+  /** Whether the viewing wallet is the job evaluator (false for the Router flow). */
+  isEvaluator: boolean;
+  /** The single truthful action available to this wallet, if any. */
+  action: "claim-refund" | "reject" | "awaiting";
 }
 
 /** Injectable read-only ports — defaulted to the live path by the server module. */
@@ -172,6 +210,43 @@ export function formatHireBudget(wei: string): string {
 export function shortenAddress(address: string): string {
   if (!isValidAddress(address)) return address;
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+/** Parse an ERC-8183 unix timestamp (string | bigint | undefined) → bigint|null. */
+export function parseErcTimestamp(value: string | bigint | undefined): bigint | null {
+  if (value === undefined) return null;
+  try {
+    const n = typeof value === "bigint" ? value : BigInt(value);
+    return n >= 0n ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Derive the truthful lifecycle of a FUNDED job for the viewing wallet.
+ * Pure — no network, no transaction. `claim-refund` is only surfaced once the
+ * job is expired (permissionless per the SDK); `reject` is only surfaced when
+ * the viewer is the job evaluator and the job is not expired; otherwise the
+ * job is honestly "awaiting" provider/evaluator action.
+ */
+export function deriveHiredLifecycle(
+  job: Pick<HiredJobRead, "expiredAt" | "evaluator">,
+  walletAddress: string,
+  nowSeconds: bigint = BigInt(Math.floor(Date.now() / 1000))
+): HiredLifecycle {
+  const expiredAt = parseErcTimestamp(job.expiredAt);
+  const expired = expiredAt !== null && expiredAt <= nowSeconds;
+  const isEvaluator =
+    typeof job.evaluator === "string" &&
+    isValidAddress(job.evaluator) &&
+    job.evaluator.toLowerCase() === walletAddress.toLowerCase();
+  const action: HiredLifecycle["action"] = expired
+    ? "claim-refund"
+    : isEvaluator
+      ? "reject"
+      : "awaiting";
+  return { state: "funded", expired, isEvaluator, action };
 }
 
 function baseDashboard(): Omit<HiresDashboardResult, "connected" | "state" | "reason"> {
@@ -316,6 +391,11 @@ export async function resolveHiredAgents(
       agentName,
       tokenId,
       identityUnavailable,
+      evaluator:
+        typeof job.evaluator === "string" && isValidAddress(job.evaluator) ? job.evaluator : null,
+      expiredAt: parseErcTimestamp(job.expiredAt)?.toString() ?? null,
+      submittedAt: parseErcTimestamp(job.submittedAt)?.toString() ?? null,
+      lifecycle: deriveHiredLifecycle(job, input.walletAddress),
     });
   }
 

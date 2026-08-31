@@ -66,6 +66,57 @@ function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+/**
+ * Truthful, state-dependent lifecycle notice for a FUNDED hire. The only
+ * action surfaced is the one this wallet is actually entitled to, and it is
+ * NEVER executed by the dashboard — every on-chain action requires a wallet
+ * signature and is only explained here (X.192 hard stop).
+ */
+function LifecycleNotice({ hire }: { hire: HiredAgent }) {
+  if (hire.lifecycle.action === "claim-refund") {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          This hire has expired. Escrow refund requires an on-chain wallet signature — it is not
+          executed automatically.
+        </p>
+        <button
+          type="button"
+          disabled
+          title="Refund requires a wallet signature and is not executed by the dashboard."
+          className="inline-flex h-9 shrink-0 cursor-not-allowed items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground"
+        >
+          Claim refund
+        </button>
+      </div>
+    );
+  }
+  if (hire.lifecycle.action === "reject") {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          You are this job&apos;s evaluator. Rejection requires a wallet signature and refunds the
+          escrow — it is not executed automatically.
+        </p>
+        <button
+          type="button"
+          disabled
+          title="Reject requires a wallet signature and is not executed by the dashboard."
+          className="inline-flex h-9 shrink-0 cursor-not-allowed items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground"
+        >
+          Reject hire
+        </button>
+      </div>
+    );
+  }
+  return (
+    <p className="text-xs text-muted-foreground">
+      Hire is funded and awaiting provider/evaluator action. No client action is available while the
+      job is funded and unexpired.
+    </p>
+  );
+}
+
 export function HiredAgentsDashboard() {
   const [feed, setFeed] = React.useState<Feed | null>(null);
 
@@ -172,7 +223,16 @@ export function HiredAgentsDashboard() {
                     <HireRow k="Amount" v={`${hire.budgetFormatted} U`} />
                     <HireRow k="Network" v="BSC Testnet (chain 97)" />
                     <HireRow k="Provider" v={shortAddress(hire.provider)} />
+                    {hire.expiredAt ? (
+                      <HireRow
+                        k="Expires"
+                        v={new Date(Number(hire.expiredAt) * 1000).toLocaleString()}
+                      />
+                    ) : null}
                   </dl>
+                  <div className="mt-3 border-t border-border/50 pt-3">
+                    <LifecycleNotice hire={hire} />
+                  </div>
                   {hire.identityUnavailable ? (
                     <p className="mt-2 text-[11px] text-muted-foreground/80">
                       Agent identity could not be confirmed from the registry; the funded on-chain
