@@ -61,11 +61,7 @@ function comparisonValue(agent: LeaderboardAgent, field: string): React.ReactNod
     case "Registry score":
       return agent.registryScore ?? unavailable("Not provided by 8004scan");
     case "Registry / source":
-      return (
-        <span className="break-all font-mono text-xs">
-          8004scan · {agent.slug}
-        </span>
-      );
+      return <span className="break-all font-mono text-xs">8004scan · {agent.slug}</span>;
     case "Listed status":
       return "Listed in 8004scan";
     case "Listed":
@@ -97,9 +93,7 @@ export function CompareView({
   initialAgents: LeaderboardAgent[];
 }) {
   const router = useRouter();
-  const [selected, setSelected] = React.useState(
-    initialAgents.slice(0, MAX_COMPARE_AGENTS)
-  );
+  const [selected, setSelected] = React.useState(initialAgents.slice(0, MAX_COMPARE_AGENTS));
   const [query, setQuery] = React.useState("");
 
   const updateUrl = (agents: LeaderboardAgent[]) => {
@@ -161,13 +155,13 @@ export function CompareView({
         </div>
 
         <div className="relative mt-4">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
           <input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search available agents by name, protocol, description, or registry identity…"
-            className="h-11 w-full rounded-md border border-border bg-background/70 pl-10 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Search the live ERC-8004 registry…"
+            className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
 
@@ -187,7 +181,9 @@ export function CompareView({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{agent.name}</span>
                   <span className="mt-1 block truncate text-xs text-muted-foreground">
-                    {agent.protocols.length > 0 ? agent.protocols.join(" · ") : chainLabelForId(agent.chainId)}
+                    {agent.protocols.length > 0
+                      ? agent.protocols.join(" · ")
+                      : chainLabelForId(agent.chainId)}
                   </span>
                 </span>
                 <Plus className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -195,13 +191,18 @@ export function CompareView({
             ))}
             {candidates.length === 0 ? (
               <p className="col-span-full py-4 text-sm text-muted-foreground">
-                {query ? `No available registry agents match “${query}”.` : "No additional agents are available on this registry page."}
+                {query
+                  ? `No available registry agents match “${query}”.`
+                  : "No additional agents are available on this registry page."}
               </p>
             ) : null}
           </div>
         ) : (
           <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-            <RegistryBadge state={catalog.state === "missing-key" ? "waiting" : "offline"} size="sm" />
+            <RegistryBadge
+              state={catalog.state === "missing-key" ? "waiting" : "offline"}
+              size="sm"
+            />
             {catalog.state === "missing-key"
               ? "The 8004scan server credential is not configured; no agents are simulated."
               : "The registry is unavailable right now. Existing URL selections remain honest and unresolved."}
@@ -215,6 +216,7 @@ export function CompareView({
           tone="primary"
           title="No agents selected"
           description="Choose up to three live registry agents above, or use Compare from a Marketplace card."
+          className="py-6"
           action={
             <Button asChild>
               <Link href="/marketplace">Browse Marketplace</Link>
@@ -225,7 +227,9 @@ export function CompareView({
         <section aria-labelledby="comparison-heading">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 id="comparison-heading" className="text-base font-semibold">Comparison</h2>
+              <h2 id="comparison-heading" className="text-base font-semibold">
+                Comparison
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {selected.length === 1
                   ? "Add one or two more agents for a useful side-by-side comparison."
@@ -247,7 +251,10 @@ export function CompareView({
                   {selected.map((agent) => (
                     <TableHead key={agent.slug} className="min-w-56 align-top">
                       <div className="flex items-start justify-between gap-2 py-1">
-                        <Link href={agentHrefFromId(agent.slug)} className="font-semibold text-foreground hover:text-primary">
+                        <Link
+                          href={agentHrefFromId(agent.slug)}
+                          className="font-semibold text-foreground hover:text-primary"
+                        >
                           {agent.name}
                         </Link>
                         <button
@@ -268,7 +275,10 @@ export function CompareView({
                   <TableRow key={field}>
                     <TableCell className="font-medium text-foreground">{field}</TableCell>
                     {selected.map((agent) => (
-                      <TableCell key={agent.slug} className="max-w-80 align-top text-muted-foreground">
+                      <TableCell
+                        key={agent.slug}
+                        className="max-w-80 align-top text-muted-foreground"
+                      >
                         {comparisonValue(agent, field)}
                       </TableCell>
                     ))}

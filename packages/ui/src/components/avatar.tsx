@@ -17,6 +17,8 @@ const sizeClass: Record<NonNullable<AvatarProps["size"]>, string> = {
 };
 
 function Avatar({ src, alt, fallback, size = "md", className }: AvatarProps) {
+  const [failed, setFailed] = React.useState(false);
+  const showFallback = !src || failed;
   return (
     <span
       className={cn(
@@ -25,10 +27,16 @@ function Avatar({ src, alt, fallback, size = "md", className }: AvatarProps) {
         className
       )}
     >
-      {src ? (
-        <img src={src} alt={alt ?? ""} className="h-full w-full object-cover" />
-      ) : (
+      {showFallback ? (
         <span aria-hidden>{fallback}</span>
+      ) : (
+        <img
+          src={src}
+          alt={alt ?? ""}
+          className="h-full w-full object-cover"
+          onError={() => setFailed(true)}
+          loading="lazy"
+        />
       )}
     </span>
   );
