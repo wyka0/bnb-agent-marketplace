@@ -42,6 +42,7 @@ import type {
   PancakeSwapIntelligenceData,
   PancakeSwapIntelligencePool,
 } from "@/lib/pancakeswap/intelligence";
+import { deriveAgentAdvantage } from "@/lib/pancakeswap/advantage";
 import {
   PANCAKESWAP_SECTION_TITLE,
   PANCAKESWAP_SECTION_DESCRIPTION,
@@ -309,6 +310,82 @@ function PoolCard({ pool, index }: { pool: PancakeSwapIntelligencePool; index: n
 }
 
 /**
+ * X.202 — "Agent Advantage" block: pure, truthful takeaways for traders and
+ * LPs derived by `deriveAgentAdvantage` (no network, no execution). Every
+ * signal is sample-scoped and evidence-labeled; demand/APR are explicitly
+ * "Insufficient data" rather than fabricated.
+ */
+function AgentAdvantageBlock({ data }: { data: PancakeSwapIntelligenceData }) {
+  const advantage = deriveAgentAdvantage(data);
+
+  return (
+    <div
+      id="pancakeswap-agent-advantage"
+      className="mt-4 rounded-xl border border-border/70 bg-card/40 p-4"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold tracking-tight">Agent Advantage</p>
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          <TrendingUp className="h-3 w-3" aria-hidden="true" />
+          Read-only intelligence
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-border/60 bg-background/50 p-3">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            For Traders
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-foreground">
+            {advantage.traderTakeaway}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border/60 bg-background/50 p-3">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            For LPs
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-foreground">{advantage.lpTakeaway}</p>
+        </div>
+      </div>
+
+      <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
+        <div className="flex items-baseline justify-between gap-2 sm:block">
+          <dt className="text-muted-foreground">Liquidity</dt>
+          <dd className="font-medium text-foreground">{advantage.liquiditySignal}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-2 sm:block">
+          <dt className="text-muted-foreground">Demand</dt>
+          <dd className="font-medium text-muted-foreground">{advantage.demandSignal}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-2 sm:block">
+          <dt className="text-muted-foreground">Fee tier</dt>
+          <dd className="font-medium text-foreground">{advantage.feeTierLabel}</dd>
+        </div>
+      </dl>
+
+      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+        {advantage.whyThisMatters}
+      </p>
+
+      <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Evidence">
+        {advantage.evidence.map((e) => (
+          <li
+            key={e}
+            className="inline-flex items-center rounded-md border border-border bg-background px-2 py-0.5 text-[11px] text-muted-foreground"
+          >
+            {e}
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground/80">
+        {advantage.limitations.join(" · ")}
+      </p>
+    </div>
+  );
+}
+
+/**
  * PancakeSwap Market Intelligence block. `data` is a discriminated server result;
  * every non-ready path renders an honest empty/error state (never a fake row).
  * The read-only disclaimer and the sample scope are mandatory copy.
@@ -336,6 +413,7 @@ function PancakeSwapPoolSection({ data }: { data: PancakeSwapIntelligenceData })
             ))}
           </ul>
           <p className="mt-3 text-[11px] text-muted-foreground">{formatSampleScope(data.sample)}</p>
+          <AgentAdvantageBlock data={data} />
         </>
       ) : (
         <div
