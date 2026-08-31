@@ -66,7 +66,7 @@ import {
   ModalTitle,
   ModalDescription,
 } from "@bnb-marketplace/ui";
-import { Database, SlidersHorizontal } from "lucide-react";
+import { Database, Scale, SlidersHorizontal } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import {
   applyMarketplaceFilters,
@@ -670,12 +670,13 @@ export function MarketplaceView({
               <SortDropdown options={SORT_OPTIONS} value={sort} onChange={setSort} />
               <Button
                 variant="outline"
-                size="sm"
                 disabled={compareSlugs.size === 0}
                 onClick={() =>
                   router.push(`/compare?compare=${encodeURIComponent([...compareSlugs].join(","))}`)
                 }
+                className="h-10 rounded-md border-input bg-background px-3 text-sm font-medium gap-2"
               >
+                <Scale className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden="true" />
                 Compare {compareSlugs.size > 0 ? `${compareSlugs.size}/3` : ""}
               </Button>
               <ViewToggle value={view} onChange={setView} />
@@ -686,7 +687,7 @@ export function MarketplaceView({
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder="Search by agent name, capability, protocol or category…"
+            placeholder="Search the live ERC-8004 registry…"
           />
           <RegistryStatusCount
             ready={catalogReady}

@@ -120,7 +120,7 @@ export function StateBadge({
       role={role}
       aria-label={text}
       className={cn(
-        "inline-flex items-center whitespace-nowrap rounded-full border font-medium tracking-tight transition-colors",
+        "inline-flex items-center whitespace-nowrap rounded-md border font-medium tracking-tight transition-colors",
         SIZE_CLASSES[size],
         variant === "solid" ? "border-transparent" : "",
         token.className,

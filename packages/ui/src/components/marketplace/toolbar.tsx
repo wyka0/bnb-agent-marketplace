@@ -67,19 +67,19 @@ export interface SearchInputProps {
 export function SearchInput({
   value,
   onChange,
-  placeholder = "Search agents…",
-  label = "Search agents",
+  placeholder = "Search the live ERC-8004 registry…",
+  label = "Search the live ERC-8004 registry",
   onSubmit,
   className,
 }: SearchInputProps) {
   const id = React.useId();
   return (
-    <div className={cn("relative flex-1", className)}>
+    <div className={cn("relative flex-1 lg:max-w-[520px]", className)}>
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
       <Search
-        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60"
         aria-hidden="true"
       />
       <input
@@ -92,7 +92,7 @@ export function SearchInput({
         onKeyDown={(e) => {
           if (e.key === "Enter" && onSubmit) onSubmit(value);
         }}
-        className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-10 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-search-cancel-button]:hidden"
+        className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-10 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-search-cancel-button]:hidden"
       />
       {value ? (
         <button

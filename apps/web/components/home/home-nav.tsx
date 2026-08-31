@@ -8,11 +8,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandLogo } from "@/components/brand-logo";
 import { AuthControls } from "@/components/auth-controls";
 
-const NAV_LINKS: readonly { href: string; label: string; external?: boolean }[] = [
+const NAV_LINKS: readonly { href: string; label: string }[] = [
   { href: "/marketplace", label: "Marketplace" },
   { href: "/categories", label: "Categories" },
+  { href: "/compare", label: "Compare" },
   { href: "/leaderboards", label: "Leaderboards" },
-  { href: "https://docs.bnbchain.org", label: "Documentation", external: true },
 ];
 
 export function HomeNav() {
@@ -24,27 +24,15 @@ export function HomeNav() {
         <BrandLogo />
 
         <nav className="hidden flex-1 items-center gap-1 lg:flex" aria-label="Main">
-          {NAV_LINKS.map((item) =>
-            item.external ? (
-              <a
-                key={item.label}
-                href={item.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {item.label}
-              </a>
-            ) : (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {item.label}
-              </Link>
-            )
-          )}
+          {NAV_LINKS.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
@@ -58,7 +46,9 @@ export function HomeNav() {
 
           <ThemeToggle />
 
-          <div className="hidden xl:block"><AuthControls /></div>
+          <div className="hidden xl:block">
+            <AuthControls />
+          </div>
 
           <button
             type="button"
@@ -82,29 +72,16 @@ export function HomeNav() {
         className={cn("border-t border-border/60 lg:hidden", open ? "block" : "hidden")}
       >
         <nav className="container flex flex-col gap-1 py-3" aria-label="Mobile">
-          {NAV_LINKS.map((item) =>
-            item.external ? (
-              <a
-                key={item.label}
-                href={item.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setOpen(false)}
-                className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                {item.label}
-              </a>
-            ) : (
-              <Link
-                key={item.label}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                {item.label}
-              </Link>
-            )
-          )}
+          {NAV_LINKS.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              {item.label}
+            </Link>
+          ))}
           <div className="mt-1 border-t border-border/60 pt-3">
             <AuthControls />
           </div>
