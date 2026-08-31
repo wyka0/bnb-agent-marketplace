@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
       <div className="flex min-h-screen flex-col">
         <HomeNav />
         <main className="flex-1">{children}</main>

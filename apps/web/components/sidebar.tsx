@@ -41,12 +41,19 @@ export function Sidebar() {
               href={item.href}
               aria-current={isActive(item.href) ? "page" : undefined}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm transition-colors",
+                "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors",
                 isActive(item.href)
-                  ? "bg-primary/10 font-medium text-primary"
+                  ? "bg-primary/10 font-medium text-foreground"
                   : "font-normal text-muted-foreground/80 hover:bg-accent/60 hover:text-foreground"
               )}
             >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "h-1.5 w-1.5 shrink-0 rounded-full",
+                  isActive(item.href) ? "bg-primary" : "bg-transparent"
+                )}
+              />
               {item.label}
             </Link>
           ))}
@@ -60,8 +67,12 @@ export function Sidebar() {
             <Link
               key={category}
               href={categoryHref[category]}
-              className="rounded-md px-3 py-1.5 text-sm font-normal capitalize text-muted-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground"
+              className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-normal capitalize text-muted-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground"
             >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-transparent"
+              />
               {category.replace("-", " ")}
             </Link>
           ))}

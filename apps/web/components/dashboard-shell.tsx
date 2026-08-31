@@ -7,7 +7,7 @@ import { ToastProvider } from "./toast-provider";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
       <ToastProvider>
         <Providers>
           <div className="flex min-h-screen flex-col">
