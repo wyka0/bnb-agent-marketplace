@@ -158,6 +158,106 @@ export async function negotiateSeller(
   }
 }
 
+/**
+ * X.197 — diagnostic variant of `negotiateSeller`. Same behavior and same
+ * validation (nothing is loosened), but on failure it classifies the exact
+ * failure class so the cause is diagnosable instead of a generic
+ * "seller negotiation failed or endpoint unreachable":
+ *
+ *   - `dns`        seller host did not resolve
+ *   - `timeout`    request exceeded the 15s timeout
+ *   - `http`       seller returned a non-2xx HTTP status
+ *   - `malformed`  response was not a well-formed, accepted quote envelope
+ *   - `network`    any other transport failure
+ *
+ * Returns the quote on success and a human, secrets-free reason on failure.
+ */
+export type NegotiateFailureClass = "dns" | "timeout" | "http" | "malformed" | "network";
+
+export interface NegotiateDiagnosedResult {
+  ok: true;
+  quote: MainTrackLiveQuote;
+}
+
+export interface NegotiateDiagnosedFailure {
+  ok: false;
+  reason: string;
+  failure: NegotiateFailureClass;
+  status?: number;
+}
+
+export type NegotiateDiagnosedOutcome = NegotiateDiagnosedResult | NegotiateDiagnosedFailure;
+
+export async function negotiateSellerDiagnosed(
+  endpoint: string,
+  taskDescription: string,
+  terms: Record<string, unknown>
+): Promise<NegotiateDiagnosedOutcome> {
+  const base = endpoint.endsWith("/negotiate")
+    ? endpoint
+    : `${endpoint.replace(/\/+$/, "")}/negotiate`;
+  let response: Response;
+  try {
+    response = await fetch(base, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ task_description: taskDescription, terms }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return { ok: false, failure: "timeout", reason: "seller negotiation timed out" };
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    if (/ENOTFOUND|EAI_AGAIN|getaddrinfo|not resolve/i.test(message)) {
+      return {
+        ok: false,
+        failure: "dns",
+        reason: "seller endpoint DNS resolution failed",
+      };
+    }
+    return { ok: false, failure: "network", reason: "seller endpoint unreachable (network error)" };
+  }
+  if (!response.ok) {
+    return {
+      ok: false,
+      failure: "http",
+      status: response.status,
+      reason: `seller endpoint returned HTTP ${response.status}`,
+    };
+  }
+  let env: MainTrackLiveQuote;
+  try {
+    env = (await response.json()) as MainTrackLiveQuote;
+  } catch {
+    return {
+      ok: false,
+      failure: "malformed",
+      reason: "seller negotiation returned a non-JSON response",
+    };
+  }
+  if (env?.response?.accepted !== true) {
+    return {
+      ok: false,
+      failure: "malformed",
+      reason: "seller negotiation declined the request (accepted !== true)",
+    };
+  }
+  if (
+    typeof env.chain_id !== "number" ||
+    typeof env.verifying_contract !== "string" ||
+    !env.provider_sig ||
+    !env.negotiation_hash
+  ) {
+    return {
+      ok: false,
+      failure: "malformed",
+      reason: "seller negotiation returned a malformed quote envelope",
+    };
+  }
+  return { ok: true, quote: env };
+}
+
 /** Read the live ERC-8183 job counter (read-only) to predict the next job id. */
 export async function readNextJobId(): Promise<bigint | null> {
   try {
@@ -226,6 +326,7 @@ export async function prepareLiveAgentHire(input: {
   ports?: Partial<LiveAgentHirePorts>;
 }): Promise<MainTrackUserHirePrepareOutcome> {
   const nowSeconds = input.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const useDefaultNegotiate = input.ports?.negotiate === undefined;
   const ports: LiveAgentHirePorts = {
     resolveEndpoint: resolveRegisteredEndpoint,
     negotiate: (endpoint) => negotiateSeller(endpoint, HIRE_TASK_DESCRIPTION, HIRE_TERMS),
@@ -240,9 +341,25 @@ export async function prepareLiveAgentHire(input: {
   if (!resolved.endpoint) {
     return { ok: false, reason: resolved.reason ?? "no registered seller endpoint" };
   }
-  const quote = await ports.negotiate(resolved.endpoint);
+  // X.197 — on the LIVE path, surface the exact negotiation failure class
+  // (dns / timeout / http / malformed / network) instead of a generic reason,
+  // so production reachability issues are diagnosable. Injected ports (tests)
+  // keep the established generic reason contract.
+  let quote: MainTrackLiveQuote | null;
+  let negotiationReason = "seller negotiation failed or endpoint unreachable";
+  if (useDefaultNegotiate) {
+    const diagnosed = await negotiateSellerDiagnosed(
+      resolved.endpoint,
+      HIRE_TASK_DESCRIPTION,
+      HIRE_TERMS
+    );
+    quote = diagnosed.ok ? diagnosed.quote : null;
+    if (!diagnosed.ok) negotiationReason = diagnosed.reason;
+  } else {
+    quote = await ports.negotiate(resolved.endpoint);
+  }
   if (!quote) {
-    return { ok: false, reason: "seller negotiation failed or endpoint unreachable" };
+    return { ok: false, reason: negotiationReason };
   }
   const sig = await ports.verifyQuote(quote, input.ownerAddress);
   if (!sig.valid || sig.signer.toLowerCase() !== input.ownerAddress.toLowerCase()) {

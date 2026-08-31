@@ -39,6 +39,7 @@ import {
 } from "./main-track-user-hire.server.ts";
 import { prepareLiveAgentHire } from "./main-track-negotiation.server.ts";
 import {
+  negotiateSellerDiagnosed,
   resolveServiceEndpointFromCard,
   decodeAgentCard,
 } from "./main-track-negotiation.server.ts";
@@ -1431,6 +1432,76 @@ async function main(): Promise<void> {
     check(
       "18.18 pure final-state verify still passes with dynamic expectedBudget",
       pure.ok === true
+    );
+  }
+
+  // X.197 — negotiation diagnostics classification (stubbed fetch, no network).
+  {
+    const originalFetch = globalThis.fetch;
+    const ENDPOINT = "https://range-keeper.103-195-188-198.sslip.io/erc8183";
+    type Stub = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+    async function withFetch(
+      stub: Stub
+    ): Promise<Awaited<ReturnType<typeof negotiateSellerDiagnosed>>> {
+      globalThis.fetch = stub as typeof fetch;
+      try {
+        return await negotiateSellerDiagnosed(ENDPOINT, "task", { terms: true });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    }
+
+    const okQuote: MainTrackLiveQuote = {
+      ...liveQuote(),
+      chain_id: 97,
+      verifying_contract: MAIN_TRACK_COMMERCE,
+    };
+
+    const rDns = await withFetch(async () => {
+      throw new TypeError("fetch failed");
+    });
+    check("X.197 dns/network classified", rDns.ok === false && rDns.failure === "network");
+
+    const rTimeout = await withFetch(async () => {
+      const err = new Error("The operation was aborted due to timeout");
+      err.name = "AbortError";
+      throw err;
+    });
+    check("X.197 timeout classified", rTimeout.ok === false && rTimeout.failure === "timeout");
+
+    const rHttp = await withFetch(async () => new Response("boom", { status: 503 }));
+    check(
+      "X.197 http failure classified with status",
+      rHttp.ok === false && rHttp.failure === "http" && rHttp.status === 503
+    );
+
+    const rMalformedJson = await withFetch(async () => new Response("not json", { status: 200 }));
+    check(
+      "X.197 malformed (non-json) classified",
+      rMalformedJson.ok === false && rMalformedJson.failure === "malformed"
+    );
+
+    const rMalformedEnv = await withFetch(
+      async () => new Response(JSON.stringify({ response: { accepted: false } }), { status: 200 })
+    );
+    check(
+      "X.197 declined (accepted false) classified as malformed",
+      rMalformedEnv.ok === false && rMalformedEnv.failure === "malformed"
+    );
+
+    const rOk = await withFetch(async () => new Response(JSON.stringify(okQuote), { status: 200 }));
+    check("X.197 valid quote passes through", rOk.ok === true && rOk.quote.chain_id === 97);
+
+    // Injected-port contract preserved: prepareLiveAgentHire with an injected
+    // negotiate returning null keeps the established generic reason.
+    const generic = await prepareLiveAgentHire({
+      agentId: AGENT_ID,
+      ownerAddress: OWNER2005,
+      ports: { negotiate: async () => null },
+    });
+    check(
+      "X.197 injected null keeps generic negotiation reason",
+      generic.ok === false && generic.reason === "seller negotiation failed or endpoint unreachable"
     );
   }
 
