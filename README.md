@@ -141,11 +141,20 @@ This is intentional and avoids fabricating an ACTIVE execution state.
 
 ## PancakeSwap Market Intelligence
 
-**PancakeSwap status: PARTIAL — read-only market intelligence.**
+**PancakeSwap status: PARTIAL — live read-only market/demand intelligence with Agent Advantage.**
 
-The marketplace includes real BSC mainnet PancakeSwap V2 read-only market intelligence.
+The marketplace includes real BSC mainnet PancakeSwap V2 read-only market intelligence, now with a judge-visible **Agent Advantage** section on agent detail pages that turns the measured data into truthful decision context for PancakeSwap traders and liquidity providers.
 
 It uses on-chain reserve data and official pricing information to derive market intelligence such as pool TVL.
+
+**Agent Advantage (live):**
+
+- **Trader benefit:** identifies which sampled pool holds the deepest computed liquidity (e.g. Cake/WBNB, $17.5M TVL) from real reserves × official USD prices — deeper liquidity context for order sizing.
+- **LP benefit:** surfaces the deepest-sampled pool plus the official 0.25% V2 swap fee accruing to LPs — factual inputs for judging where liquidity sits.
+- **Liquidity signal:** Strong / Moderate / Thin, derived only from observed pool reserves (evidence-labeled).
+- **Fee context:** the official V2 fee-tier constant (0.25%).
+- **Honest boundaries:** demand trend is "Insufficient data" (no volume/price-change source); 24h volume and APR/APY are not available from the on-chain source and are never estimated; no return, profitability, or prediction is claimed.
+- **Bounded sample:** signals describe the sampled registry window (first/latest registered pairs), never the full PancakeSwap ecosystem.
 
 - Chain: BSC mainnet / Chain ID 56
 - Read-only

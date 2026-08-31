@@ -51,7 +51,16 @@ The existing **Agent Advantage Report** (`docs/termix/Agent-Advantage-Report.md`
 
 ## PANCAKESWAP
 
-The existing **read-only PancakeSwap V2 market intelligence** integration is implemented and production-live (on-chain reserves + official pricing; pool TVL, no volume fabrication, no swaps/APY fabrication).
+**PancakeSwap status: PARTIAL — live read-only market/demand intelligence with Agent Advantage.**
+
+The **read-only PancakeSwap V2 market intelligence** integration is implemented and production-live (on-chain reserves + official pricing; pool TVL, no volume fabrication, no swaps/APY fabrication). Agent detail pages now include a production-live **Agent Advantage** section that derives truthful decision context from the measured data:
+
+- **Trader benefit:** the deepest-sampled pool (real reserves × official USD prices, e.g. Cake/WBNB $17.5M TVL) is identified so traders can see where liquidity actually sits before sizing an order.
+- **LP benefit:** the deepest-sampled pool plus the official 0.25% V2 swap fee accruing to LPs.
+- **Liquidity signal:** Strong/Moderate/Thin, derived only from observed pool reserves; fee tier from the official V2 constant.
+- **Honest boundaries:** demand trend shows "Insufficient data" (no volume/price-change source); 24h volume and APR/APY are not available from on-chain data and are never estimated; no return, profitability, or prediction is claimed; signals describe the bounded registry sample, not the full ecosystem.
+
+No automated trading, no liquidity automation, and no APR are claimed.
 
 ## LIVE DEMO
 
