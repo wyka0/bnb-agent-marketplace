@@ -4,29 +4,29 @@
 
 @layer base {
   :root {
-    --font-sans: "Inter", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", "Inter", system-ui, sans-serif;
 
-    /* Light theme (default) — warm off-white canvas, premium editorial feel */
+    /* Light theme (default) — warm-white canvas, premium technical product */
     --background: 48 23% 97%; /* ~#FAFAF7 */
-    --foreground: 222 47% 11%;
+    --foreground: 0 0% 7%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 0 0% 7%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 0 0% 7%;
 
-    --primary: 43 96% 51%; /* BNB gold #F0B90B */
-    --primary-foreground: 222 47% 11%;
+    --primary: 43 100% 50%; /* BNB yellow */
+    --primary-foreground: 0 0% 5%;
 
-    --secondary: 45 33% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 45 20% 94%;
+    --secondary-foreground: 0 0% 7%;
 
-    --muted: 45 30% 95%;
+    --muted: 45 20% 94%;
     --muted-foreground: 40 10% 36%;
 
-    --accent: 45 28% 93%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 45 22% 92%;
+    --accent-foreground: 0 0% 7%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
@@ -39,7 +39,7 @@
 
     --border: 44 16% 90%;
     --input: 44 16% 88%;
-    --ring: 222 47% 11%;
+    --ring: 43 100% 50%;
 
     --radius: 0.5rem;
   }
@@ -91,44 +91,10 @@
       "rlig" 1,
       "calt" 1;
     isolation: isolate;
-    /* Extremely subtle grid — sits behind application content, never dominant. */
+    /* Very subtle grid — content remains the visual focus. */
     background-image:
-      linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
+      linear-gradient(to right, hsl(var(--border) / 0.35) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.35) 1px, transparent 1px);
     background-size: 72px 72px;
-  }
-
-  /* Ambient BNB-gold sphere — abstract, fixed, behind content, never interactive. */
-  body::after {
-    content: "";
-    position: fixed;
-    z-index: -10;
-    top: -20vmax;
-    right: -14vmax;
-    width: 60vmax;
-    height: 60vmax;
-    border-radius: 9999px;
-    pointer-events: none;
-    background: radial-gradient(
-      circle at 32% 32%,
-      hsl(var(--primary) / 0.55),
-      hsl(var(--primary) / 0.2) 42%,
-      transparent 68%
-    );
-    filter: blur(50px);
-    opacity: 0.5;
-  }
-
-  .dark body::after {
-    opacity: 0.28;
-  }
-
-  @media (max-width: 640px) {
-    body::after {
-      top: -28vmax;
-      right: -38vmax;
-      width: 78vmax;
-      height: 78vmax;
-    }
   }
 }
