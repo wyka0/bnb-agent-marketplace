@@ -32,19 +32,6 @@ export function AgentCardStandard({
         className
       )}
     >
-      {compare ? (
-        <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground">
-            <CompareCheckbox
-              checked={compare.selected}
-              onToggle={compare.onToggle}
-              agentName={agent.name}
-            />
-            Compare
-          </label>
-        </div>
-      ) : null}
-
       <div className="flex items-start gap-3">
         <Avatar
           src={agent.logoUrl}
@@ -114,7 +101,7 @@ export function AgentCardStandard({
       )}
 
       <div className="mt-auto">
-        <div className="mt-5 flex items-center gap-2 border-t border-border/60 pt-4">
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
           <button
             type="button"
             onClick={() => onViewDetails?.(agent)}
@@ -123,6 +110,16 @@ export function AgentCardStandard({
             View Details
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </button>
+          {compare ? (
+            <label className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground has-[input:checked]:border-primary/30 has-[input:checked]:bg-primary/10 has-[input:checked]:text-primary focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+              <CompareCheckbox
+                checked={compare.selected}
+                onToggle={compare.onToggle}
+                agentName={agent.name}
+              />
+              Compare
+            </label>
+          ) : null}
           <button
             type="button"
             disabled={!agent.hireable}

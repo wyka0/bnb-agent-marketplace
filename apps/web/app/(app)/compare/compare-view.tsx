@@ -3,8 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Database, GitCompareArrows, Plus, Search, Trash2, X } from "lucide-react";
+import { Database, GitCompareArrows, Info, Plus, Search, Star, Trash2, X } from "lucide-react";
 import {
+  Avatar,
   Button,
   MarketplaceContainer,
   MarketplaceEmptyState,
@@ -38,32 +39,93 @@ function formatDate(value: string | null) {
   return Number.isNaN(date.valueOf()) ? value : date.toLocaleDateString();
 }
 
+function agentMeta(agent: LeaderboardAgent): string {
+  return agent.protocols.length > 0 ? agent.protocols.join(" · ") : chainLabelForId(agent.chainId);
+}
+
 function comparisonValue(agent: LeaderboardAgent, field: string): React.ReactNode {
   switch (field) {
     case "Description":
-      return agent.description ?? unavailable("Not provided by 8004scan");
+      return (
+        <span className="leading-relaxed">
+          {agent.description ?? unavailable("Not provided by 8004scan")}
+        </span>
+      );
     case "Category":
       return unavailable("Not classified by 8004scan");
     case "Capabilities":
-      return agent.x402Supported ? "x402 payments" : unavailable("Not provided by 8004scan");
+      return agent.x402Supported ? (
+        <span className="inline-flex items-center rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-xs font-medium">
+          x402 payments
+        </span>
+      ) : (
+        unavailable("Not provided by 8004scan")
+      );
     case "Protocols":
-      return agent.protocols.length > 0
-        ? agent.protocols.join(" · ")
-        : unavailable("No protocols listed");
+      return agent.protocols.length > 0 ? (
+        <span className="flex flex-wrap gap-1">
+          {agent.protocols.map((p) => (
+            <span
+              key={p}
+              className="inline-flex items-center rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-xs font-medium text-foreground"
+            >
+              {p}
+            </span>
+          ))}
+        </span>
+      ) : (
+        unavailable("No protocols listed")
+      );
     case "Chain":
-      return `${chainLabelForId(agent.chainId)} (${agent.chainId})`;
+      return (
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          {chainLabelForId(agent.chainId)}
+          <span className="text-xs text-muted-foreground">({agent.chainId})</span>
+        </span>
+      );
     case "Verification":
-      return agent.verification === "verified" ? "Verified" : "Unverified";
+      return agent.verification === "verified" ? (
+        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          Verified
+        </span>
+      ) : (
+        <span className="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          Unverified
+        </span>
+      );
     case "Reputation":
-      return agent.averageScore != null
-        ? `${agent.averageScore}/5${agent.totalFeedbacks != null ? ` · ${agent.totalFeedbacks} reviews` : ""}`
-        : unavailable("No reputation data");
+      return agent.averageScore != null ? (
+        <span className="inline-flex items-center gap-1.5 text-sm">
+          <Star className="h-3.5 w-3.5 fill-primary text-primary" aria-hidden="true" />
+          <span className="font-semibold text-foreground">{agent.averageScore}/5</span>
+          {agent.totalFeedbacks != null ? (
+            <span className="text-xs text-muted-foreground">· {agent.totalFeedbacks} reviews</span>
+          ) : null}
+        </span>
+      ) : (
+        unavailable("No reputation data")
+      );
     case "Registry score":
-      return agent.registryScore ?? unavailable("Not provided by 8004scan");
+      return agent.registryScore != null ? (
+        <span className="font-semibold text-foreground">{agent.registryScore}</span>
+      ) : (
+        unavailable("Not provided by 8004scan")
+      );
     case "Registry / source":
-      return <span className="break-all font-mono text-xs">8004scan · {agent.slug}</span>;
+      return (
+        <span className="break-all font-mono text-xs text-muted-foreground">
+          8004scan · {agent.slug}
+        </span>
+      );
     case "Listed status":
-      return "Listed in 8004scan";
+      return (
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          Listed in 8004scan
+        </span>
+      );
     case "Listed":
       return formatDate(agent.createdAt) ?? unavailable("Listing date unavailable");
     default:
@@ -84,6 +146,24 @@ const FIELDS = [
   "Listed status",
   "Listed",
 ] as const;
+
+function AgentIdentity({ agent, className }: { agent: LeaderboardAgent; className?: string }) {
+  return (
+    <div className={`flex items-center gap-3 ${className ?? ""}`}>
+      <Avatar
+        src={agent.imageUrl ?? undefined}
+        alt={`${agent.name} agent logo`}
+        fallback={agent.name.charAt(0).toUpperCase()}
+        size="md"
+        className="h-10 w-10 shrink-0 rounded-lg"
+      />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-foreground">{agent.name}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{agentMeta(agent)}</p>
+      </div>
+    </div>
+  );
+}
 
 export function CompareView({
   catalog,
@@ -138,11 +218,12 @@ export function CompareView({
         className="py-4"
       />
 
-      <section className="mb-8 rounded-xl border border-border/70 bg-card/50 p-5">
+      {/* Selected agents + search panel */}
+      <section className="mb-6 rounded-xl border border-border/70 bg-card/50 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">Select agents</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h2 className="text-base font-semibold tracking-tight">Select agents</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
               {selected.length} / {MAX_COMPARE_AGENTS} selected · live 8004scan records
             </p>
           </div>
@@ -155,15 +236,55 @@ export function CompareView({
         </div>
 
         <div className="relative mt-4">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60"
+            aria-hidden="true"
+          />
           <input
             type="search"
+            role="searchbox"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search the live ERC-8004 registry…"
-            className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Search the live ERC-8004 registry"
+            className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
+
+        {selected.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {selected.map((agent) => (
+              <div
+                key={agent.slug}
+                className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border/70 bg-background/60 py-1.5 pl-1.5 pr-1"
+              >
+                <Avatar
+                  src={agent.imageUrl ?? undefined}
+                  alt={`${agent.name} agent logo`}
+                  fallback={agent.name.charAt(0).toUpperCase()}
+                  size="sm"
+                  className="h-7 w-7 shrink-0 rounded-md"
+                />
+                <div className="min-w-0">
+                  <p className="max-w-40 truncate text-xs font-semibold text-foreground">
+                    {agent.name}
+                  </p>
+                  <p className="max-w-40 truncate text-[11px] text-muted-foreground">
+                    {agentMeta(agent)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeAgent(agent.slug)}
+                  aria-label={`Remove ${agent.name} from comparison`}
+                  className="ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {catalog.state === "ready" ? (
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -173,24 +294,26 @@ export function CompareView({
                 type="button"
                 disabled={selected.length >= MAX_COMPARE_AGENTS}
                 onClick={() => addAgent(agent)}
-                className="flex min-h-20 items-start gap-3 rounded-lg border border-border/70 bg-background/50 p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-[4.5rem] items-center gap-3 rounded-lg border border-border/70 bg-background/50 p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
-                  {agent.name.charAt(0).toUpperCase()}
-                </span>
+                <Avatar
+                  src={agent.imageUrl ?? undefined}
+                  alt={`${agent.name} agent logo`}
+                  fallback={agent.name.charAt(0).toUpperCase()}
+                  size="sm"
+                  className="h-8 w-8 shrink-0 rounded-lg"
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{agent.name}</span>
-                  <span className="mt-1 block truncate text-xs text-muted-foreground">
-                    {agent.protocols.length > 0
-                      ? agent.protocols.join(" · ")
-                      : chainLabelForId(agent.chainId)}
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    {agentMeta(agent)}
                   </span>
                 </span>
-                <Plus className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+                <Plus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               </button>
             ))}
             {candidates.length === 0 ? (
-              <p className="col-span-full py-4 text-sm text-muted-foreground">
+              <p className="col-span-full py-3 text-sm text-muted-foreground">
                 {query
                   ? `No available registry agents match “${query}”.`
                   : "No additional agents are available on this registry page."}
@@ -198,14 +321,16 @@ export function CompareView({
             ) : null}
           </div>
         ) : (
-          <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="mt-4 inline-flex max-w-full items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-muted-foreground">
             <RegistryBadge
               state={catalog.state === "missing-key" ? "waiting" : "offline"}
               size="sm"
             />
-            {catalog.state === "missing-key"
-              ? "The 8004scan server credential is not configured; no agents are simulated."
-              : "The registry is unavailable right now. Existing URL selections remain honest and unresolved."}
+            <span className="truncate">
+              {catalog.state === "missing-key"
+                ? "The 8004scan server credential is not configured; no agents are simulated."
+                : "The registry is unavailable right now. Existing URL selections remain honest and unresolved."}
+            </span>
           </div>
         )}
       </section>
@@ -227,41 +352,44 @@ export function CompareView({
         <section aria-labelledby="comparison-heading">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 id="comparison-heading" className="text-base font-semibold">
+              <h2 id="comparison-heading" className="text-base font-semibold tracking-tight">
                 Comparison
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 {selected.length === 1
                   ? "Add one or two more agents for a useful side-by-side comparison."
-                  : `${selected.length} real registry agents selected.`}
+                  : `${selected.length} agents selected`}
               </p>
             </div>
-            <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-              <Database className="h-4 w-4 text-primary" aria-hidden="true" />
-              Source: 8004scan
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs font-medium text-muted-foreground">
+              <Database className="h-3.5 w-3.5" aria-hidden="true" />
+              8004scan
             </span>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-border/70">
-            <Table className="min-w-[760px]">
+            <Table className="min-w-[820px]">
               <caption className="sr-only">Real registry fields for the selected agents.</caption>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-40">Field</TableHead>
+                  <TableHead className="w-40 bg-background/60 align-top font-medium text-muted-foreground">
+                    Field
+                  </TableHead>
                   {selected.map((agent) => (
                     <TableHead key={agent.slug} className="min-w-56 align-top">
-                      <div className="flex items-start justify-between gap-2 py-1">
+                      <div className="flex items-start justify-between gap-2">
                         <Link
                           href={agentHrefFromId(agent.slug)}
-                          className="font-semibold text-foreground hover:text-primary"
+                          className="group block min-w-0 flex-1 no-underline"
+                          title={`View ${agent.name}`}
                         >
-                          {agent.name}
+                          <AgentIdentity agent={agent} />
                         </Link>
                         <button
                           type="button"
                           onClick={() => removeAgent(agent.slug)}
                           aria-label={`Remove ${agent.name} from comparison`}
-                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                          className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <X className="h-4 w-4" aria-hidden="true" />
                         </button>
@@ -271,13 +399,18 @@ export function CompareView({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {FIELDS.map((field) => (
-                  <TableRow key={field}>
-                    <TableCell className="font-medium text-foreground">{field}</TableCell>
+                {FIELDS.map((field, index) => (
+                  <TableRow
+                    key={field}
+                    className={index % 2 === 0 ? "bg-background/30" : undefined}
+                  >
+                    <TableCell className="sticky left-0 bg-background/95 font-semibold text-foreground backdrop-blur">
+                      {field}
+                    </TableCell>
                     {selected.map((agent) => (
                       <TableCell
                         key={agent.slug}
-                        className="max-w-80 align-top text-muted-foreground"
+                        className="max-w-80 align-top text-sm text-muted-foreground"
                       >
                         {comparisonValue(agent, field)}
                       </TableCell>
@@ -287,6 +420,12 @@ export function CompareView({
               </TableBody>
             </Table>
           </div>
+
+          <p className="mt-4 flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+            All data is sourced from live 8004scan registry records at the time of selection.
+            Unavailable fields remain honest and unresolved.
+          </p>
         </section>
       )}
     </MarketplaceContainer>
