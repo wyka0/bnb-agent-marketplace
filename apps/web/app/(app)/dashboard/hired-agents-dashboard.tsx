@@ -18,12 +18,19 @@ import * as React from "react";
 import Link from "next/link";
 import {
   Badge,
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
   EmptyState,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
 } from "@bnb-marketplace/ui";
 import type { HiredAgent, HiresDashboardResult } from "@/lib/dashboard/hired-agents";
 import { buildErc8183ClaimRefundCall } from "@bnb-marketplace/integrations/altana";
@@ -68,24 +75,38 @@ function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+function refundStatusCopy(state: RefundState): string {
+  switch (state) {
+    case "preparing":
+      return "Preparing refund…";
+    case "awaitingWallet":
+      return "Confirm refund in your wallet…";
+    case "submitting":
+      return "Submitting refund…";
+    case "confirmingTx":
+      return "Confirming refund…";
+    default:
+      return "";
+  }
+}
+
+type RefundState =
+  "idle" | "preparing" | "awaitingWallet" | "submitting" | "confirmingTx" | "success" | "error";
+
 /**
  * Truthful, state-dependent lifecycle notice for a FUNDED hire. The only
  * action surfaced is the one this wallet is actually entitled to, and it is
  * NEVER executed by the dashboard — every on-chain action requires a wallet
  * signature and is only explained here (X.192 hard stop).
+ *
+ * X.212 — the native browser confirmation dialog is replaced by this in-app
+ * modal. Opening the modal performs ZERO wallet calls; the blockchain flow
+ * starts only when the user clicks "Claim refund" INSIDE the modal.
  */
 function ClaimRefundButton({ hire, onSuccess }: { hire: HiredAgent; onSuccess: () => void }) {
-  const [state, setState] = React.useState<
-    | "idle"
-    | "confirming"
-    | "preparing"
-    | "awaitingWallet"
-    | "submitting"
-    | "confirmingTx"
-    | "success"
-    | "error"
-  >("idle");
+  const [state, setState] = React.useState<RefundState>("idle");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [modalOpen, setModalOpen] = React.useState(false);
   const busy = state !== "idle" && state !== "error" && state !== "success";
 
   const eligible =
@@ -108,10 +129,6 @@ function ClaimRefundButton({ hire, onSuccess }: { hire: HiredAgent; onSuccess: (
 
   async function handleClaimRefund() {
     if (busy) return;
-    const confirmed = window.confirm(
-      `Claim refund for Job #${hire.jobId}?\n\nYour expired funded job is eligible for a refund. This will request a blockchain transaction from your wallet.`
-    );
-    if (!confirmed) return;
 
     setState("preparing");
     setErrorMessage(null);
@@ -233,7 +250,7 @@ function ClaimRefundButton({ hire, onSuccess }: { hire: HiredAgent; onSuccess: (
         }
         if (!receipt || receipt.status !== "success") {
           setErrorMessage(
-            "We couldn't confirm the refund transaction. Check your wallet and try again."
+            "We couldn't verify the refund transaction. Check your wallet and try again."
           );
           setState("error");
           return;
@@ -267,29 +284,62 @@ function ClaimRefundButton({ hire, onSuccess }: { hire: HiredAgent; onSuccess: (
     );
   }
 
+  const showStatusInModal = state !== "idle";
+  const statusCopy = refundStatusCopy(state);
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="flex flex-col gap-1">
         <p className="text-xs text-muted-foreground">
           This hire has expired. Escrow refund requires an on-chain wallet signature.
         </p>
-        {errorMessage ? <p className="text-xs text-destructive">{errorMessage}</p> : null}
-        {state === "awaitingWallet" ? (
-          <p className="text-xs text-muted-foreground">Confirm refund in your wallet…</p>
-        ) : null}
-        {state === "submitting" ? (
-          <p className="text-xs text-muted-foreground">Submitting refund…</p>
-        ) : null}
-        {state === "confirmingTx" ? (
-          <p className="text-xs text-muted-foreground">Confirming refund…</p>
-        ) : null}
-        {state === "preparing" ? (
-          <p className="text-xs text-muted-foreground">Preparing refund…</p>
+        {errorMessage && !modalOpen ? (
+          <p className="text-xs text-destructive">{errorMessage}</p>
         ) : null}
       </div>
+      <Modal
+        open={modalOpen}
+        onOpenChange={(open) => {
+          // Never close the modal while the wallet flow is in flight — the
+          // transaction may already be submitted and must not lose its status.
+          // Radix restores focus to the "Claim refund" trigger on close and
+          // traps focus + supports Escape while open.
+          if (!busy) setModalOpen(open);
+        }}
+      >
+        <ModalContent className="max-w-md">
+          <ModalHeader>
+            <ModalTitle>Claim refund</ModalTitle>
+            <ModalDescription>Your expired funded job is eligible for a refund.</ModalDescription>
+          </ModalHeader>
+          <div className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
+            <HireRow k="Job" v={`#${hire.jobId}`} />
+            <HireRow k="Amount" v={`${hire.budgetFormatted} U`} />
+            <HireRow k="Network" v="BSC Testnet (chain 97)" />
+            <HireRow k="Provider" v={shortAddress(hire.provider)} />
+          </div>
+          <p className="text-xs font-medium text-foreground">
+            This action will request a blockchain transaction from your wallet.
+          </p>
+          {showStatusInModal ? (
+            <p className="text-xs text-muted-foreground" role="status">
+              {statusCopy}
+            </p>
+          ) : null}
+          {errorMessage ? <p className="text-xs text-destructive">{errorMessage}</p> : null}
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setModalOpen(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleClaimRefund()} disabled={busy}>
+              {busy ? statusCopy || "Processing…" : "Claim refund"}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
       <button
         type="button"
-        onClick={() => void handleClaimRefund()}
+        onClick={() => setModalOpen(true)}
         disabled={busy}
         title={
           busy

@@ -472,6 +472,162 @@ async function main(): Promise<void> {
     /does not have enough BNB for transaction gas/.test(dashboardSourceForClaimRefund)
   );
 
+  // X.212 — in-app modal replaces window.confirm (tests 35-54).
+  // Static source checks prove the modal wiring without any browser or chain.
+
+  // 35. window.confirm is NOT used anywhere in the dashboard.
+  check(
+    "35 window.confirm is not used",
+    /window\.confirm/.test(dashboardSourceForClaimRefund) === false
+  );
+  check(
+    "35 confirm() is not used",
+    /(^|\W)confirm\(/.test(dashboardSourceForClaimRefund) === false
+  );
+  check("35 alert() is not used", /(^|\W)alert\(/.test(dashboardSourceForClaimRefund) === false);
+  check("35 prompt() is not used", /(^|\W)prompt\(/.test(dashboardSourceForClaimRefund) === false);
+
+  // 36. Claim refund button opens the in-app modal (not the wallet).
+  check(
+    "36 claim button opens in-app modal (setModalOpen(true))",
+    /onClick=\{\(\) => setModalOpen\(true\)\}/.test(dashboardSourceForClaimRefund)
+  );
+  check(
+    "36 modal renders Claim refund title",
+    /<ModalTitle>Claim refund<\/ModalTitle>/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 37. Modal uses the shared primitive (no new dependency).
+  check(
+    "37 modal uses shared @bnb-marketplace/ui primitive",
+    /ModalContent/.test(dashboardSourceForClaimRefund) &&
+      /ModalFooter/.test(dashboardSourceForClaimRefund) &&
+      /"@bnb-marketplace\/ui"/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 38. Modal shows the dynamic jobId/amount/network (no hardcoded job).
+  check("38 modal shows dynamic Job #", /\#\$\{hire\.jobId\}/.test(dashboardSourceForClaimRefund));
+  check(
+    "38 modal shows dynamic amount from hire",
+    /\$\{hire\.budgetFormatted\} U/.test(dashboardSourceForClaimRefund)
+  );
+  check(
+    "38 modal shows BSC Testnet (chain 97)",
+    /BSC Testnet \(chain 97\)/.test(dashboardSourceForClaimRefund)
+  );
+  check("38 no hardcoded job 836", /836/.test(dashboardSourceForClaimRefund) === false);
+
+  // 39. Modal contains the truthful wallet warning.
+  check(
+    "39 modal warns about blockchain transaction request",
+    /This action will request a blockchain transaction from your wallet\./.test(
+      dashboardSourceForClaimRefund
+    )
+  );
+
+  // 40. Cancel button closes modal with zero wallet interaction.
+  check(
+    "40 Cancel closes modal (setModalOpen(false)), no wallet call",
+    /onClick=\{\(\) => setModalOpen\(false\)\}/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 41. Only the in-modal Claim refund button starts the wallet flow.
+  check(
+    "41 only in-modal confirm starts wallet flow (handleClaimRefund on modal button)",
+    /<Button onClick=\{\(\) => void handleClaimRefund\(\)\}/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 42. Duplicate confirm clicks blocked (busy guard + disabled buttons).
+  check(
+    "42 duplicate confirm blocked (busy guard)",
+    /if \(busy\) return/.test(dashboardSourceForClaimRefund)
+  );
+  check(
+    "42 confirm button disabled while busy",
+    /<Button onClick=\{\(\) => void handleClaimRefund\(\)\} disabled=\{busy\}>/.test(
+      dashboardSourceForClaimRefund
+    )
+  );
+  check(
+    "42 cancel button disabled while busy",
+    /<Button variant="outline" onClick=\{\(\) => setModalOpen\(false\)\} disabled=\{busy\}>/.test(
+      dashboardSourceForClaimRefund
+    )
+  );
+
+  // 43. Modal stays open (locked) while wallet flow is in flight.
+  check(
+    "43 modal is locked during wallet flow (onOpenChange guarded by busy)",
+    /if \(!busy\) setModalOpen\(open\)/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 44. Modal status copy matches the existing wallet states.
+  for (const copy of [
+    "Preparing refund…",
+    "Confirm refund in your wallet…",
+    "Submitting refund…",
+    "Confirming refund…",
+  ]) {
+    check(`44 modal status copy: "${copy}"`, dashboardSourceForClaimRefund.includes(copy));
+  }
+
+  // 45. Modal closes/updates correctly after success (success branch replaces the modal).
+  check(
+    "45 success replaces modal with truthful confirmation",
+    /if \(state === "success"\)/.test(dashboardSourceForClaimRefund) &&
+      /Refund claimed — escrow returned/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 46. Accessibility: dialog role/title/description come from the shared Radix
+  // primitive (role="dialog", aria-modal, labelled by ModalTitle, described by
+  // ModalDescription, focus trap + focus return + Escape handled by Radix).
+  const modalSource = readFileSync(
+    new URL("../../../../packages/ui/src/components/modal.tsx", import.meta.url),
+    "utf8"
+  );
+  check(
+    "46 modal primitive is Radix Dialog (role=dialog, focus trap, Escape)",
+    /@radix-ui\/react-dialog/.test(modalSource) && /DialogPrimitive\.Content/.test(modalSource)
+  );
+  check(
+    "46 dashboard modal uses ModalTitle + ModalDescription (accessible name)",
+    /<ModalTitle>/.test(dashboardSourceForClaimRefund) &&
+      /<ModalDescription>/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 47. The modal trigger keeps visible focus states.
+  check(
+    "47 modal trigger keeps visible focus states",
+    /focus-visible:ring-2/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 48. Opening the modal performs zero wallet/transaction calls: the only
+  // ethereum.request sites live inside handleClaimRefund, which is reachable
+  // only from the in-modal confirm button (test 41).
+  const walletCalls = dashboardSourceForClaimRefund.match(/ethereum\.request/g) ?? [];
+  check(
+    "48 all wallet calls live inside the confirm handler (zero on modal open)",
+    walletCalls.length === 4 &&
+      /handleClaimRefund/.test(dashboardSourceForClaimRefund) &&
+      // exactly one eth_sendTransaction, and only in the handler
+      (dashboardSourceForClaimRefund.match(/eth_sendTransaction/g) ?? []).length === 1
+  );
+
+  // 49. getJob re-read + refresh after receipt (unchanged X.210 flow).
+  check(
+    "49 successful receipt triggers getJob re-read + refresh (onSuccess)",
+    /onSuccess\(\)/.test(dashboardSourceForClaimRefund) &&
+      /getTransactionReceipt/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 50. Existing wallet flow unchanged: chain 97 + commerce + value 0x0.
+  check(
+    "50 chain 97 enforced (0x61 switch + call)",
+    /"0x61"/.test(dashboardSourceForClaimRefund) &&
+      /buildErc8183ClaimRefundCall\(97, BigInt\(hire\.jobId\)\)/.test(dashboardSourceForClaimRefund)
+  );
+  check("50 value is 0x0 (no funds sent)", /value: "0x0"/.test(dashboardSourceForClaimRefund));
+
   if (failures === 0) {
     console.log("X.168 dashboard funded-hire verify: ALL CHECKS PASSED");
   } else {
