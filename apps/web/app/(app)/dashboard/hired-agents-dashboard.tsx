@@ -33,7 +33,7 @@ import {
   ModalTitle,
 } from "@bnb-marketplace/ui";
 import type { HiredAgent, HiresDashboardResult } from "@/lib/dashboard/hired-agents";
-import { buildErc8183ClaimRefundCall } from "@bnb-marketplace/integrations/altana";
+import { buildErc8183ClaimRefundCall, pollForReceipt } from "@bnb-marketplace/integrations/altana";
 import { createMainTrackPublicClient } from "@bnb-marketplace/integrations/altana";
 
 type Feed = { ok: boolean; data?: HiresDashboardResult };
@@ -91,7 +91,17 @@ function refundStatusCopy(state: RefundState): string {
 }
 
 type RefundState =
-  "idle" | "preparing" | "awaitingWallet" | "submitting" | "confirmingTx" | "success" | "error";
+  | "idle"
+  | "preparing"
+  | "awaitingWallet"
+  | "submitting"
+  | "confirmingTx"
+  | "success"
+  /** Receipt RPC unavailable after submission — hash preserved, never resend. */
+  | "receiptPendingReview"
+  /** Receipt SUCCESS; read-only job-state refresh being retried. */
+  | "confirmedRefreshing"
+  | "error";
 
 /**
  * Truthful, state-dependent lifecycle notice for a FUNDED hire. The only
@@ -107,7 +117,13 @@ function ClaimRefundButton({ hire, onSuccess }: { hire: HiredAgent; onSuccess: (
   const [state, setState] = React.useState<RefundState>("idle");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [modalOpen, setModalOpen] = React.useState(false);
-  const busy = state !== "idle" && state !== "error" && state !== "success";
+  /** Hash of an already-broadcast refund tx (preserved, never resent). */
+  const [txHash, setTxHash] = React.useState<string | null>(null);
+  const busy =
+    state !== "idle" &&
+    state !== "error" &&
+    state !== "success" &&
+    state !== "receiptPendingReview";
 
   const eligible =
     hire.lifecycle.action === "claim-refund" &&
@@ -168,9 +184,7 @@ function ClaimRefundButton({ hire, onSuccess }: { hire: HiredAgent; onSuccess: (
       try {
         chainIdHex = (await ethereum.request({ method: "eth_chainId" })) as string;
       } catch {
-        setErrorMessage(
-          "We couldn't confirm the refund transaction. Check your wallet and try again."
-        );
+        setErrorMessage("We couldn't read your wallet's network. Check your wallet and try again.");
         setState("error");
         return;
       }
@@ -234,37 +248,46 @@ function ClaimRefundButton({ hire, onSuccess }: { hire: HiredAgent; onSuccess: (
       }
 
       setState("confirmingTx");
+      // X.214 — the transaction hash is PRESERVED from this point on: the tx
+      // has been broadcast; no path below ever sends another transaction.
+      // Receipt confirmation uses the proven bounded poller from the
+      // integrations package (pending-aware, never rebroadcasts).
+      let poll: Awaited<ReturnType<typeof pollForReceipt>>;
       try {
-        const publicClient = createMainTrackPublicClient();
-        let receipt: { status: string } | null = null;
-        for (let i = 0; i < 30; i++) {
-          try {
-            const r = (await publicClient.getTransactionReceipt({
-              hash: txHash as `0x${string}`,
-            })) as { status: string };
-            receipt = r;
-            break;
-          } catch {
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-          }
-        }
-        if (!receipt || receipt.status !== "success") {
-          setErrorMessage(
-            "We couldn't verify the refund transaction. Check your wallet and try again."
-          );
-          setState("error");
-          return;
-        }
+        poll = await pollForReceipt(txHash, {
+          getReceipt: (hash) =>
+            createMainTrackPublicClient().getTransactionReceipt({ hash: hash as `0x${string}` }),
+          maxAttempts: 60,
+          intervalMs: 2000,
+        });
       } catch {
+        poll = { status: "timeout", error: "receipt poller threw" };
+      }
+
+      if (poll.status === "success") {
+        // Receipt is authoritative: the refund HAS happened on-chain. From
+        // here on, nothing can turn this into a refund failure — a failed
+        // job-state re-read only delays the UI, never undoes the truth.
+        setState("confirmedRefreshing");
+        onSuccess();
+        return;
+      }
+      if (poll.status === "reverted") {
         setErrorMessage(
-          "We couldn't confirm the refund transaction. Check your wallet and try again."
+          "The refund transaction was reverted on-chain. No funds moved — you can try again."
         );
         setState("error");
         return;
       }
-
-      setState("success");
-      onSuccess();
+      if (poll.status === "timeout" || poll.status === "error") {
+        // The tx was submitted and may well be confirmed — but this client
+        // could not read a receipt within the polling bound (RPC outage,
+        // rate limit, or the known viem BigInt-mix failure). Truthful copy;
+        // the hash is preserved for the user to check in the explorer.
+        setState("receiptPendingReview");
+        setTxHash(txHash);
+        return;
+      }
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause);
       if (/user rejected/i.test(msg)) {
@@ -276,11 +299,58 @@ function ClaimRefundButton({ hire, onSuccess }: { hire: HiredAgent; onSuccess: (
     }
   }
 
-  if (state === "success") {
+  if (state === "confirmedRefreshing" || state === "success") {
     return (
       <p className="text-xs font-medium text-emerald-600">
-        Refund claimed — escrow returned. Refreshing...
+        Refund transaction confirmed. Refreshing job status…
       </p>
+    );
+  }
+
+  if (state === "receiptPendingReview") {
+    // The tx was broadcast; this client could not read a receipt in time. It
+    // may well be confirmed on-chain. Truthful copy + read-only retry only —
+    // never a second transaction.
+    return (
+      <div className="flex flex-col gap-1">
+        <p className="text-xs text-muted-foreground">
+          Refund transaction submitted. Confirmation is still being checked.
+        </p>
+        {txHash ? (
+          <p className="break-all text-[11px] text-muted-foreground/80">Transaction: {txHash}</p>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            // Read-only re-check: poll the SAME hash again. Never resends.
+            void (async () => {
+              setState("confirmingTx");
+              const poll = await pollForReceipt(txHash ?? "", {
+                getReceipt: (hash) =>
+                  createMainTrackPublicClient().getTransactionReceipt({
+                    hash: hash as `0x${string}`,
+                  }),
+                maxAttempts: 30,
+                intervalMs: 2000,
+              });
+              if (poll.status === "success") {
+                setState("confirmedRefreshing");
+                onSuccess();
+              } else if (poll.status === "reverted") {
+                setErrorMessage(
+                  "The refund transaction was reverted on-chain. No funds moved — you can try again."
+                );
+                setState("error");
+              } else {
+                setState("receiptPendingReview");
+              }
+            })();
+          }}
+          className="inline-flex h-8 w-fit shrink-0 items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          Check status again
+        </button>
+      </div>
     );
   }
 

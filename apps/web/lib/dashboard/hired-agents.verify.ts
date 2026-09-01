@@ -574,8 +574,9 @@ async function main(): Promise<void> {
   // 45. Modal closes/updates correctly after success (success branch replaces the modal).
   check(
     "45 success replaces modal with truthful confirmation",
-    /if \(state === "success"\)/.test(dashboardSourceForClaimRefund) &&
-      /Refund claimed — escrow returned/.test(dashboardSourceForClaimRefund)
+    /if \(state === "confirmedRefreshing" \|\| state === "success"\)/.test(
+      dashboardSourceForClaimRefund
+    ) && /Refund transaction confirmed\. Refreshing job status…/.test(dashboardSourceForClaimRefund)
   );
 
   // 46. Accessibility: dialog role/title/description come from the shared Radix
@@ -627,6 +628,143 @@ async function main(): Promise<void> {
       /buildErc8183ClaimRefundCall\(97, BigInt\(hire\.jobId\)\)/.test(dashboardSourceForClaimRefund)
   );
   check("50 value is 0x0 (no funds sent)", /value: "0x0"/.test(dashboardSourceForClaimRefund));
+
+  // X.214 — post-transaction receipt verification reliability (tests 51-64).
+  // The proven failure: a SUCCESS on-chain tx reached "couldn't verify" because
+  // the hand-rolled poller mapped poll-exhaustion → error. These tests prove the
+  // new semantics: receipt is authoritative; a confirmed tx is NEVER downgraded.
+
+  // 51. The old untruthful copy is GONE from the dashboard.
+  check(
+    "51 untruthful 'couldn't verify' copy removed",
+    /We couldn't verify the refund transaction/.test(dashboardSourceForClaimRefund) === false
+  );
+  check(
+    "51 untruthful 'couldn't confirm' copy removed",
+    /We couldn't confirm the refund transaction/.test(dashboardSourceForClaimRefund) === false
+  );
+
+  // 52. Receipt confirmation delegates to the PROVEN integrations poller
+  // (pending-error aware, bounded, never rebroadcasts) instead of a
+  // hand-rolled loop.
+  check(
+    "52 dashboard uses proven pollForReceipt from integrations",
+    /pollForReceipt\(/.test(dashboardSourceForClaimRefund) &&
+      /from "@bnb-marketplace\/integrations\/altana"/.test(dashboardSourceForClaimRefund) &&
+      // the hand-rolled 30-iteration loop is gone
+      /for \(let i = 0; i < 30; i\+\+\)/.test(dashboardSourceForClaimRefund) === false
+  );
+
+  // 53. Semantic separation: SUCCESS receipt → confirmedRefreshing + refresh,
+  // never an error state.
+  check(
+    "53 receipt SUCCESS → confirmedRefreshing (never error)",
+    /poll\.status === "success"[\s\S]{0,400}?setState\("confirmedRefreshing"\)/.test(
+      dashboardSourceForClaimRefund
+    ) && /Refund transaction confirmed\. Refreshing job status…/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 54. Post-success getJob/feed refresh failure is NOT a refund failure: the
+  // confirmed copy is shown and the feed refresh is retried read-only.
+  check(
+    "54 confirmed tx survives refresh failure (truthful post-confirmation copy)",
+    /Refund transaction confirmed\. Refreshing job status…/.test(dashboardSourceForClaimRefund) &&
+      /confirmedRefreshing/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 55. Receipt REVERTED → truthful "reverted on-chain" error (state #4).
+  check(
+    "55 receipt REVERTED → truthful reverted copy",
+    /poll\.status === "reverted"[\s\S]{0,300}?The refund transaction was reverted on-chain/.test(
+      dashboardSourceForClaimRefund
+    )
+  );
+
+  // 56. Receipt RPC unavailable after submission (state #5): tx hash
+  // PRESERVED + truthful "submitted, still checking" copy + read-only retry.
+  check(
+    "56 receipt RPC unavailable → hash preserved + submitted copy",
+    /setState\("receiptPendingReview"\)[\s\S]{0,120}?setTxHash\(txHash\)/.test(
+      dashboardSourceForClaimRefund
+    ) &&
+      /Refund transaction submitted\. Confirmation is still being checked\./.test(
+        dashboardSourceForClaimRefund
+      )
+  );
+
+  // 57. The read-only retry path re-polls the SAME hash; it NEVER re-enters
+  // handleClaimRefund and contains no wallet call. The retry block is bounded
+  // by the "Check status again" button through its closing tag.
+  const retryStart = dashboardSourceForClaimRefund.indexOf("Check status again");
+  const retryBlock =
+    retryStart === -1
+      ? null
+      : dashboardSourceForClaimRefund.slice(
+          retryStart,
+          retryStart + 1200 // button copy + handler through closing fragment
+        );
+  check(
+    "57 read-only retry path: no eth_sendTransaction, re-polls same hash",
+    retryBlock !== null &&
+      /eth_sendTransaction/.test(retryBlock) === false &&
+      /eth_requestAccounts/.test(retryBlock) === false &&
+      /pollForReceipt\(txHash \?\? ""/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 58. No automatic retry / no second transaction: exactly one
+  // eth_sendTransaction site in the whole dashboard (the wallet click).
+  check(
+    "58 no automatic retry — single eth_sendTransaction site total",
+    (dashboardSourceForClaimRefund.match(/eth_sendTransaction/g) ?? []).length === 1
+  );
+
+  // 59. Poll exhaustion / RPC error after submission is NOT labeled a refund
+  // failure (states #2/#5 stay non-error, honest).
+  check(
+    "59 poll timeout never downgrades a submitted tx to failure copy",
+    /couldn't verify/.test(dashboardSourceForClaimRefund) === false &&
+      /Refund failed/.test(dashboardSourceForClaimRefund) === true // generic catch remains, but only for pre-receipt throws
+  );
+
+  // 60. Pending-receipt behavior: pollForReceipt's bounded pending loop is
+  // configured with a sane attempt bound (60 × 2s = ~2 min).
+  check(
+    "60 receipt polling bound is explicit (maxAttempts 60, interval 2000)",
+    /maxAttempts: 60/.test(dashboardSourceForClaimRefund) &&
+      /intervalMs: 2000/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 61. Successful receipt triggers the feed refresh (onSuccess) — the existing
+  // verified behavior, now on the success path only.
+  check(
+    "61 confirmed receipt triggers feed refresh (onSuccess)",
+    /poll\.status === "success"[\s\S]{0,200}?onSuccess\(\)/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 62. Dynamic jobId everywhere; no hardcoded 787 in the dashboard.
+  check(
+    "62 no hardcoded job 787 in dashboard",
+    /787/.test(dashboardSourceForClaimRefund) === false
+  );
+  check(
+    "62 dynamic BigInt(hire.jobId) call construction retained",
+    /buildErc8183ClaimRefundCall\(97, BigInt\(hire\.jobId\)\)/.test(dashboardSourceForClaimRefund)
+  );
+
+  // 63. Refund button disappears after terminal state: once the job leaves
+  // FUNDED (e.g. refunded → status 5 EXPIRED), the resolver drops it from
+  // hires, so the dashboard cannot render a refund button again.
+  check(
+    "63 refunded job (status 5) is not a funded hire → no refund button",
+    expiredStatus.hires.length === 0 && completed.hires.length === 0
+  );
+
+  // 64. No wallet call during render (unchanged X.210/X.212 invariant).
+  check(
+    "64 no wallet call during render (single handler entry)",
+    /handleClaimRefund/.test(dashboardSourceForClaimRefund) &&
+      (dashboardSourceForClaimRefund.match(/eth_requestAccounts/g) ?? []).length === 1
+  );
 
   if (failures === 0) {
     console.log("X.168 dashboard funded-hire verify: ALL CHECKS PASSED");
