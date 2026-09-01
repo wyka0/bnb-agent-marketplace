@@ -26,6 +26,8 @@ import {
   EmptyState,
 } from "@bnb-marketplace/ui";
 import type { HiredAgent, HiresDashboardResult } from "@/lib/dashboard/hired-agents";
+import { buildErc8183ClaimRefundCall } from "@bnb-marketplace/integrations/altana";
+import { createMainTrackPublicClient } from "@bnb-marketplace/integrations/altana";
 
 type Feed = { ok: boolean; data?: HiresDashboardResult };
 
@@ -72,24 +74,239 @@ function shortAddress(address: string): string {
  * NEVER executed by the dashboard — every on-chain action requires a wallet
  * signature and is only explained here (X.192 hard stop).
  */
-function LifecycleNotice({ hire }: { hire: HiredAgent }) {
-  if (hire.lifecycle.action === "claim-refund") {
+function ClaimRefundButton({ hire, onSuccess }: { hire: HiredAgent; onSuccess: () => void }) {
+  const [state, setState] = React.useState<
+    | "idle"
+    | "confirming"
+    | "preparing"
+    | "awaitingWallet"
+    | "submitting"
+    | "confirmingTx"
+    | "success"
+    | "error"
+  >("idle");
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const busy = state !== "idle" && state !== "error" && state !== "success";
+
+  const eligible =
+    hire.lifecycle.action === "claim-refund" &&
+    hire.status === "FUNDED" &&
+    hire.lifecycle.expired === true;
+
+  if (!eligible) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          This hire has expired. Escrow refund requires an on-chain wallet signature — it is not
-          executed automatically.
-        </p>
-        <button
-          type="button"
-          disabled
-          title="Refund requires a wallet signature and is not executed by the dashboard."
-          className="inline-flex h-9 shrink-0 cursor-not-allowed items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground"
-        >
-          Claim refund
-        </button>
-      </div>
+      <button
+        type="button"
+        disabled
+        title="This job is not currently eligible for a refund."
+        className="inline-flex h-9 shrink-0 cursor-not-allowed items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground"
+      >
+        Claim refund
+      </button>
     );
+  }
+
+  async function handleClaimRefund() {
+    if (busy) return;
+    const confirmed = window.confirm(
+      `Claim refund for Job #${hire.jobId}?\n\nYour expired funded job is eligible for a refund. This will request a blockchain transaction from your wallet.`
+    );
+    if (!confirmed) return;
+
+    setState("preparing");
+    setErrorMessage(null);
+
+    try {
+      const ethereum = (
+        window as unknown as {
+          ethereum?: {
+            request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+          };
+        }
+      ).ethereum;
+      if (!ethereum) {
+        setErrorMessage("Connect your wallet to claim this refund.");
+        setState("error");
+        return;
+      }
+
+      setState("awaitingWallet");
+      let walletAddress: string;
+      try {
+        const accounts = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
+        walletAddress = accounts[0] ?? "";
+        if (!walletAddress) throw new Error("No wallet account returned.");
+      } catch (cause) {
+        const msg = cause instanceof Error ? cause.message : String(cause);
+        if (/user rejected|rejected/i.test(msg)) {
+          setErrorMessage("Refund request was cancelled in your wallet.");
+        } else {
+          setErrorMessage("Connect your wallet to claim this refund.");
+        }
+        setState("error");
+        return;
+      }
+
+      let chainIdHex: string;
+      try {
+        chainIdHex = (await ethereum.request({ method: "eth_chainId" })) as string;
+      } catch {
+        setErrorMessage(
+          "We couldn't confirm the refund transaction. Check your wallet and try again."
+        );
+        setState("error");
+        return;
+      }
+
+      const chainId = Number.parseInt(chainIdHex, 16);
+      if (chainId !== 97) {
+        try {
+          await ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: "0x61" }],
+          });
+        } catch (cause) {
+          const msg = cause instanceof Error ? cause.message : String(cause);
+          if (/user rejected/i.test(msg)) {
+            setErrorMessage("Refund request was cancelled in your wallet.");
+          } else {
+            setErrorMessage("Switch to BNB Testnet to claim this refund.");
+          }
+          setState("error");
+          return;
+        }
+      }
+
+      setState("preparing");
+      let call: ReturnType<typeof buildErc8183ClaimRefundCall>;
+      try {
+        call = buildErc8183ClaimRefundCall(97, BigInt(hire.jobId));
+      } catch (cause) {
+        setErrorMessage(
+          cause instanceof Error ? cause.message : "We couldn't prepare the refund transaction."
+        );
+        setState("error");
+        return;
+      }
+
+      setState("submitting");
+      let txHash: string;
+      try {
+        const result = (await ethereum.request({
+          method: "eth_sendTransaction",
+          params: [
+            { from: walletAddress, to: call.to, data: call.data, value: "0x0", chainId: "0x61" },
+          ],
+        })) as string;
+        txHash = result;
+        if (!/^0x[0-9a-fA-F]{64}$/.test(txHash))
+          throw new Error("Invalid transaction hash returned.");
+      } catch (cause) {
+        const msg = cause instanceof Error ? cause.message : String(cause);
+        if (/user rejected|rejected/i.test(msg)) {
+          setErrorMessage("Refund request was cancelled in your wallet.");
+        } else if (/insufficient funds|gas/i.test(msg)) {
+          setErrorMessage("Your wallet does not have enough BNB for transaction gas.");
+        } else if (/WrongStatus|already claimed/i.test(msg)) {
+          setErrorMessage("This refund has already been claimed.");
+        } else {
+          setErrorMessage("The refund transaction was rejected by the contract.");
+        }
+        setState("error");
+        return;
+      }
+
+      setState("confirmingTx");
+      try {
+        const publicClient = createMainTrackPublicClient();
+        let receipt: { status: string } | null = null;
+        for (let i = 0; i < 30; i++) {
+          try {
+            const r = (await publicClient.getTransactionReceipt({
+              hash: txHash as `0x${string}`,
+            })) as { status: string };
+            receipt = r;
+            break;
+          } catch {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        }
+        if (!receipt || receipt.status !== "success") {
+          setErrorMessage(
+            "We couldn't confirm the refund transaction. Check your wallet and try again."
+          );
+          setState("error");
+          return;
+        }
+      } catch {
+        setErrorMessage(
+          "We couldn't confirm the refund transaction. Check your wallet and try again."
+        );
+        setState("error");
+        return;
+      }
+
+      setState("success");
+      onSuccess();
+    } catch (cause) {
+      const msg = cause instanceof Error ? cause.message : String(cause);
+      if (/user rejected/i.test(msg)) {
+        setErrorMessage("Refund request was cancelled in your wallet.");
+      } else {
+        setErrorMessage("Refund failed: " + msg + ". No funds moved.");
+      }
+      setState("error");
+    }
+  }
+
+  if (state === "success") {
+    return (
+      <p className="text-xs font-medium text-emerald-600">
+        Refund claimed — escrow returned. Refreshing...
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-1">
+        <p className="text-xs text-muted-foreground">
+          This hire has expired. Escrow refund requires an on-chain wallet signature.
+        </p>
+        {errorMessage ? <p className="text-xs text-destructive">{errorMessage}</p> : null}
+        {state === "awaitingWallet" ? (
+          <p className="text-xs text-muted-foreground">Confirm refund in your wallet…</p>
+        ) : null}
+        {state === "submitting" ? (
+          <p className="text-xs text-muted-foreground">Submitting refund…</p>
+        ) : null}
+        {state === "confirmingTx" ? (
+          <p className="text-xs text-muted-foreground">Confirming refund…</p>
+        ) : null}
+        {state === "preparing" ? (
+          <p className="text-xs text-muted-foreground">Preparing refund…</p>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        onClick={() => void handleClaimRefund()}
+        disabled={busy}
+        title={
+          busy
+            ? "Refund in progress — please wait for your wallet."
+            : "Refund requires a wallet signature and will be confirmed on-chain."
+        }
+        className="inline-flex h-9 shrink-0 items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {busy ? "Processing…" : "Claim refund"}
+      </button>
+    </div>
+  );
+}
+
+function LifecycleNotice({ hire, onSuccess }: { hire: HiredAgent; onSuccess?: () => void }) {
+  if (hire.lifecycle.action === "claim-refund") {
+    return <ClaimRefundButton hire={hire} onSuccess={onSuccess ?? (() => {})} />;
   }
   if (hire.lifecycle.action === "reject") {
     return (
@@ -119,6 +336,13 @@ function LifecycleNotice({ hire }: { hire: HiredAgent }) {
 
 export function HiredAgentsDashboard() {
   const [feed, setFeed] = React.useState<Feed | null>(null);
+
+  const refresh = React.useCallback(() => {
+    void fetch("/api/dashboard/hires", { cache: "no-store" })
+      .then((response) => response.json() as Promise<Feed>)
+      .then((body) => setFeed(body))
+      .catch(() => setFeed({ ok: false }));
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -231,7 +455,7 @@ export function HiredAgentsDashboard() {
                     ) : null}
                   </dl>
                   <div className="mt-3 border-t border-border/50 pt-3">
-                    <LifecycleNotice hire={hire} />
+                    <LifecycleNotice hire={hire} onSuccess={refresh} />
                   </div>
                   {hire.identityUnavailable ? (
                     <p className="mt-2 text-[11px] text-muted-foreground/80">
