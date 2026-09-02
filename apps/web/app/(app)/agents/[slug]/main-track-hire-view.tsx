@@ -13,11 +13,13 @@
  */
 
 import * as React from "react";
+import Link from "next/link";
 import { CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
 import { Button, Card, CardContent } from "@bnb-marketplace/ui";
 import type { LeaderboardAgent } from "@/lib/eight004scan/leaderboard-types";
 import {
   MAIN_TRACK_MODEL_B,
+  MAIN_TRACK_USER_HIRE_CALLS,
   runMainTrackUserHireFromWallet,
   mainTrackUserHireErrorMessage,
 } from "@/lib/activation/main-track-user-hire";
@@ -60,17 +62,50 @@ type ApiEnvelope<T> = { ok: boolean; data?: T; error?: { code?: string; message:
 export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
   const [state, setState] = React.useState<HireStepState>({ kind: "idle" });
   const [plan, setPlan] = React.useState<MainTrackUserHirePrepareResult | null>(null);
+  // X.225 — passive session awareness. `read` while mount loads: an
+  // unauthenticated user sees the login-required state INSTEAD of a Hire
+  // button that starts server negotiation. This fetch is read-only
+  // (`GET /api/auth/me`) and triggers NO wallet/auth interaction by itself.
+  const [authState, setAuthState] = React.useState<"checking" | "authenticated" | "guest">(
+    "checking"
+  );
   const busy = state.kind === "preparing" || state.kind === "running";
   // X.165 — hard re-entrancy guard. While a Hire execution is in flight, no further
-  // invocation of confirmHire (double-click, re-render, stale closure, re-click) may
+  // invocation of confirmHire (double-click, re-render, re-click) may
   // start another execution. Cleared only on a terminal outcome. Deterministic, not a timeout.
   const hireInFlight = React.useRef(false);
 
   const review = plan?.review ?? null;
 
+  React.useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then((response) => response.json() as Promise<{ data?: { walletAddress?: unknown } }>)
+      .then((body) => {
+        if (cancelled) return;
+        setAuthState(
+          body?.data && typeof body.data.walletAddress === "string" && body.data.walletAddress
+            ? "authenticated"
+            : "guest"
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setAuthState("guest");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function prepare() {
     if (hireInFlight.current) return;
     if (state.kind === "preparing" || state.kind === "running") return;
+    // X.225 — proactive auth gate: never begin negotiation (or anything
+    // wallet/blockchain-adjacent) for an unauthenticated user.
+    if (authState !== "authenticated") {
+      setAuthState("guest");
+      return;
+    }
     const csrf = csrfCookie();
     if (csrf === null) {
       setState({
@@ -294,8 +329,13 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
             <div className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-400">
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Hire funded successfully
             </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              You successfully activated this agent. The escrow is funded on-chain and the job is
+              now with the seller.
+            </p>
             <dl className="mt-2 space-y-1 text-xs">
-              <Row k="Job" v={state.jobId} />
+              <Row k="Agent" v={agent.name} />
+              <Row k="Job" v={`#${state.jobId}`} />
               <Row
                 k="Amount"
                 v={
@@ -307,12 +347,37 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
                 }
               />
               <Row k="Seller" v={state.provider ?? (plan ? plan.seller : "")} />
-              <Row k="Chain" v="BSC Testnet (97)" />
+              <Row k="Network" v="BSC Testnet (chain 97)" />
             </dl>
+            {state.txHashes && Object.keys(state.txHashes).length > 0 ? (
+              <details className="mt-2 rounded-lg border border-border/60 bg-background/40 p-2 text-xs">
+                <summary className="cursor-pointer font-medium text-muted-foreground">
+                  Transaction evidence ({Object.keys(state.txHashes).length} on-chain transactions)
+                </summary>
+                <dl className="mt-2 space-y-1">
+                  {MAIN_TRACK_USER_HIRE_CALLS.filter((s) => state.txHashes[s]).map((s) => (
+                    <Row key={s} k={STEP_TO_STATE_LABEL[s] ?? s} v={state.txHashes[s] ?? ""} />
+                  ))}
+                </dl>
+              </details>
+            ) : null}
             <p className="mt-2 text-xs text-muted-foreground">
-              Verified on-chain as a funded commercial hire. It is commercial escrow — NOT active or
-              running. Submit/settle require separate authorization.
+              Awaiting seller fulfillment — the seller has not yet submitted the work, and this job
+              is NOT completed. It is commercial escrow — not active or running. Submit/settle
+              require separate authorization; if the job expires unfulfilled, the escrow is
+              refundable.
             </p>
+            <div className="mt-3">
+              <Link
+                href="/dashboard"
+                className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                View in Dashboard
+              </Link>
+              <p className="mt-2 text-center text-[11px] text-muted-foreground/80">
+                Track this job&apos;s live on-chain status under “Your hired agents”.
+              </p>
+            </div>
           </div>
         ) : null}
 
@@ -324,13 +389,37 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
         ) : null}
 
         <div className="mt-4">
-          {state.kind === "review" ? (
+          {authState === "guest" ? (
+            // X.225 — proactive auth gate: no negotiation, no wallet request,
+            // no switch request, no blockchain call. Only a login path.
+            <div className="space-y-2">
+              <div
+                className="flex items-start gap-2 rounded-lg border border-border/60 bg-background/40 p-3 text-xs"
+                role="note"
+              >
+                <ShieldCheck
+                  className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <span>
+                  Sign in to continue with this hire. A one-time wallet signature signs you in — no
+                  transaction is sent at this step.
+                </span>
+              </div>
+              <Link
+                href="/login"
+                className="inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Sign in to hire
+              </Link>
+            </div>
+          ) : state.kind === "review" ? (
             <Button disabled={busy} onClick={() => void confirmHire()} className="h-11 w-full">
               {plan ? `Confirm Hire — ${plan.review.price}` : "Confirm Hire"}
             </Button>
           ) : (
             <Button
-              disabled={busy || !isAvailableAgent}
+              disabled={busy || authState === "checking" || !isAvailableAgent}
               onClick={() => void prepare()}
               className="h-11 w-full"
             >

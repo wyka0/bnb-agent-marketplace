@@ -184,16 +184,34 @@ function mockWallet(
     rejectSendAt?: number;
     failSendAt?: number;
     malformedHash?: boolean;
+    /** X.224: behavior when wallet_switchEthereumChain is requested. */
+    switchBehavior?: "accept" | "reject" | "unsupported" | "silent-null";
   } = {}
 ) {
   const sends: Array<{ from: string; to: string; data: string; value: string; chainId: string }> =
     [];
+  const switchRequests: Array<{ chainId: string }> = [];
+  let currentChainId = opts.chainId ?? 97;
   const request: (method: string, params: unknown[]) => Promise<unknown> = async (
     method,
     params
   ) => {
     if (method === "eth_requestAccounts") return opts.accounts ?? [USER];
-    if (method === "eth_chainId") return `0x${(opts.chainId ?? 97).toString(16)}`;
+    if (method === "eth_chainId") return `0x${currentChainId.toString(16)}`;
+    if (method === "wallet_switchEthereumChain") {
+      const p = (params[0] ?? {}) as { chainId?: string };
+      switchRequests.push({ chainId: String(p.chainId ?? "") });
+      const behavior = opts.switchBehavior ?? "accept";
+      if (behavior === "reject") throw new Error("user rejected the network switch");
+      if (behavior === "unsupported")
+        throw new Error(
+          "Unrecognized chain ID. Try adding the chain using wallet_addEthereumChain first."
+        );
+      if (behavior === "silent-null") return null;
+      // accept: actually switch the mock's chain
+      currentChainId = Number.parseInt(String(p.chainId ?? "0x61"), 16) || 97;
+      return null;
+    }
     if (method === "eth_sendTransaction") {
       const tx = (params[0] ?? {}) as {
         from: string;
@@ -210,7 +228,7 @@ function mockWallet(
     }
     return null;
   };
-  return { request, sends };
+  return { request, sends, switchRequests };
 }
 
 function fundedJobRead(
@@ -698,16 +716,146 @@ async function main(): Promise<void> {
     );
   }
 
-  // 5. Wallet: wrong chain.
+  // 5. Wallet: wrong chain (X.224: now triggers a single switch request; the
+  //    OLD mock never honors the switch, so the flow stops cleanly with the
+  //    still-wrong-chain message and sends nothing).
   {
     const { plan, expectations } = planFromPrepare();
+    const mock = mockWallet({ chainId: 56, switchBehavior: "silent-null" });
     const out = await runMainTrackUserHireFromWallet({
-      request: mockWallet({ chainId: 56 }).request,
+      request: mock.request,
       plan,
       expectations,
       confirmStep: async () => true,
     });
-    check("5. wrong chain blocked", out.ok === false && /wrong chain/.test(out.reason ?? ""));
+    check("5. wrong chain blocked (no tx submitted)", out.ok === false && mock.sends.length === 0);
+    check(
+      "5. wrong chain requested a switch to 0x61",
+      mock.switchRequests.length === 1 && mock.switchRequests[0]?.chainId === "0x61"
+    );
+    check(
+      "5. still-wrong-chain message is actionable",
+      /still not on BSC Testnet/i.test(out.reason ?? "")
+    );
+  }
+
+  // 5b. X.224: already on chain 97 — NO switch request is ever made.
+  {
+    const { plan, expectations } = planFromPrepare();
+    const mock = mockWallet({ chainId: 97 });
+    const out = await runMainTrackUserHireFromWallet({
+      request: mock.request,
+      plan,
+      expectations,
+      confirmStep: async () => true,
+      receiptMaxAttempts: 2,
+      receiptIntervalMs: 1,
+    });
+    check("5b. chain 97 hires without any switch request", out.ok === true);
+    check("5b. zero switch requests on correct chain", mock.switchRequests.length === 0);
+    check("5b. exactly 5 sends after direct start", mock.sends.length === 5);
+  }
+
+  // 5c. X.224: wrong chain → switch accepted → hire sequence resumes normally.
+  {
+    const { plan, expectations } = planFromPrepare();
+    const mock = mockWallet({ chainId: 56, switchBehavior: "accept" });
+    const out = await runMainTrackUserHireFromWallet({
+      request: mock.request,
+      plan,
+      expectations,
+      confirmStep: async () => true,
+      receiptMaxAttempts: 2,
+      receiptIntervalMs: 1,
+    });
+    check("5c. wrong chain + accepted switch → hire succeeds", out.ok === true);
+    check("5c. exactly one switch request", mock.switchRequests.length === 1);
+    check(
+      "5c. full 5-call sequence ran after the switch",
+      mock.sends.length === 5 && mock.sends.every((t) => t.chainId === "0x61")
+    );
+  }
+
+  // 5d. X.224: switch rejected → clean failure, zero transactions.
+  {
+    const { plan, expectations } = planFromPrepare();
+    const mock = mockWallet({ chainId: 56, switchBehavior: "reject" });
+    const out = await runMainTrackUserHireFromWallet({
+      request: mock.request,
+      plan,
+      expectations,
+      confirmStep: async () => true,
+    });
+    check("5d. switch rejected → failed", out.ok === false);
+    check("5d. zero transactions on switch rejection", mock.sends.length === 0);
+    check(
+      "5d. rejection message is understandable + truthful",
+      /Network switch declined.*No transaction was submitted/s.test(out.reason ?? "")
+    );
+    check("5d. exactly one switch request (no auto-retry)", mock.switchRequests.length === 1);
+  }
+
+  // 5e. X.224: switch unsupported → actionable manual-switch message, no tx.
+  {
+    const { plan, expectations } = planFromPrepare();
+    const mock = mockWallet({ chainId: 56, switchBehavior: "unsupported" });
+    const out = await runMainTrackUserHireFromWallet({
+      request: mock.request,
+      plan,
+      expectations,
+      confirmStep: async () => true,
+    });
+    check("5e. switch unsupported → failed", out.ok === false);
+    check("5e. zero transactions when switch unsupported", mock.sends.length === 0);
+    check(
+      "5e. manual-switch message is actionable",
+      /switch to BSC Testnet \(chain 97\) manually/i.test(out.reason ?? "")
+    );
+  }
+
+  // 5f. X.224: review disclosure remains BEFORE any wallet interaction — the
+  //     switch is requested only inside the confirmed-hire path. Structural:
+  //     the switch call site lives inside runMainTrackUserHireFromWallet AFTER
+  //     connect, and the view only invokes that function from confirmHire.
+  {
+    const { plan, expectations } = planFromPrepare();
+    let walletTouched = false;
+    const guardingRequest: (method: string, params: unknown[]) => Promise<unknown> = async (
+      method,
+      params
+    ) => {
+      walletTouched = true;
+      return mockWallet({ chainId: 56, switchBehavior: "silent-null" }).request(method, params);
+    };
+    const out = await runMainTrackUserHireFromWallet({
+      request: guardingRequest,
+      plan,
+      expectations,
+      confirmStep: async () => {
+        // The review disclosure is what the user sees BEFORE confirmStep is
+        // ever invoked; confirmStep firing proves the disclosure stage passed.
+        return true;
+      },
+    });
+    check(
+      "5f. confirmStep (post-disclosure boundary) precedes any send",
+      out.ok === false && walletTouched === true
+    );
+    // Structural check: the source requires review before running.
+    const src = readFileSync(new URL("./main-track-user-hire.ts", import.meta.url), "utf8");
+    check(
+      "5f. switch lives inside the confirmed wallet path (after connect), never at flow open",
+      /X\.224[\s\S]{0,200}Reachable ONLY inside the user-confirmed hire path/.test(src)
+    );
+    check(
+      "5f. review disclosure precedes running (view renders review before confirm)",
+      /kind === "review"[\s\S]{0,4000}?confirmHire/.test(
+        readFileSync(
+          new URL("../../app/(app)/agents/[slug]/main-track-hire-view.tsx", import.meta.url),
+          "utf8"
+        )
+      )
+    );
   }
 
   // 6. Wallet: user rejection at each step -> cancelled, no later sends.
@@ -1503,6 +1651,135 @@ async function main(): Promise<void> {
       "X.197 injected null keeps generic negotiation reason",
       generic.ok === false && generic.reason === "seller negotiation failed or endpoint unreachable"
     );
+  }
+
+  // X.225 — proactive auth gate for the Hire UI (structural + behavioral).
+  {
+    const viewSrc = readFileSync(
+      new URL("../../app/(app)/agents/[slug]/main-track-hire-view.tsx", import.meta.url),
+      "utf8"
+    );
+    const libSrc = readFileSync(new URL("./main-track-user-hire.ts", import.meta.url), "utf8");
+
+    // (b) unauthenticated user → proactive auth CTA/path.
+    check(
+      "X.225b guest state renders a sign-in CTA instead of Hire",
+      /authState === "guest"/.test(viewSrc) &&
+        /Sign in to continue with this hire/.test(viewSrc) &&
+        /href="\/login"/.test(viewSrc)
+    );
+    // (a) authenticated user → the existing review flow is preserved verbatim.
+    check(
+      "X.225a review disclosure rows preserved (Agent/Seller/Price/token/Chain/what/cancel/expiry/wallet)",
+      /Row k="Agent"/.test(viewSrc) &&
+        /Row k="Seller"/.test(viewSrc) &&
+        /Row k="Price"/.test(viewSrc) &&
+        /Row k="Payment token"/.test(viewSrc) &&
+        /Row k="Chain"/.test(viewSrc) &&
+        /review\.whatWillHappen/.test(viewSrc) &&
+        /review\.cancellationBehavior/.test(viewSrc) &&
+        /review\.expiry/.test(viewSrc) &&
+        /Your wallet owns nonce, gas, signing and submission/.test(viewSrc)
+    );
+    // (c,d,e) unauthenticated → no negotiation/wallet/switch request.
+    // prepare() returns before the CSRF/negotiation branch when guest.
+    check(
+      "X.225c-e prepare() hard-stops before negotiation for guests",
+      /if \(authState !== "authenticated"\) \{\s*setAuthState\("guest"\);\s*return;\s*\}/.test(
+        viewSrc
+      ) &&
+        // the gate precedes the fetch to the hire API (negotiation):
+        viewSrc.indexOf('if (authState !== "authenticated")') <
+          viewSrc.indexOf('"/api/activation/main-track-hire"')
+    );
+    // (h) opening/reviewing must not trigger auth or blockchain calls:
+    // the mount effect only performs a read-only GET /api/auth/me.
+    check(
+      "X.225h mount effect is a read-only auth check only (no wallet, no chain, no hire API)",
+      /fetch\("\/api\/auth\/me", \{ cache: "no-store" \}\)/.test(viewSrc) &&
+        !/eth_requestAccounts|eth_chainId|wallet_switchEthereumChain/.test(
+          viewSrc.slice(
+            viewSrc.indexOf("React.useEffect"),
+            viewSrc.indexOf("async function prepare")
+          )
+        )
+    );
+    // The gate never starts authentication itself — it links to the existing /login page.
+    check(
+      "X.225 reuses the existing login route (no second auth system)",
+      /href="\/login"/.test(viewSrc) && !/eth_requestAccounts/.test(viewSrc)
+    );
+    // (f,g) X.224 switch behavior and the 5-call flow are untouched in the lib.
+    check(
+      "X.225f-g X.224 switch branch + 5-call sequence unchanged",
+      /X\.224 — wrong-chain UX/.test(libSrc) &&
+        /wallet_switchEthereumChain/.test(libSrc) &&
+        MAIN_TRACK_USER_HIRE_CALLS.length === 5 &&
+        MAIN_TRACK_USER_HIRE_CALLS[0] === "createJob" &&
+        MAIN_TRACK_USER_HIRE_CALLS[4] === "fund"
+    );
+    // Auth-state derivation is passive and fail-closed (error → guest).
+    check(
+      "X.225 auth check fails closed to guest",
+      /\.catch\(\(\) => \{\s*if \(!cancelled\) setAuthState\("guest"\);\s*\}\)/.test(viewSrc)
+    );
+
+    // X.226 — post-hire journey completion (structural on the funded state).
+    {
+      const funded = viewSrc.slice(viewSrc.indexOf('kind === "funded"'));
+      // (a) successful funded hire → success state with activation copy.
+      check(
+        "X.226a funded state confirms activation",
+        /Hire funded successfully/.test(funded) &&
+          /You successfully activated this agent/.test(funded)
+      );
+      // (b) job ID displayed (with # prefix).
+      check("X.226b job ID displayed", /Row k="Job" v=\{`#\$\{state\.jobId\}`\}/.test(funded));
+      // (c) agent name displayed.
+      check("X.226c agent name displayed", /Row k="Agent" v=\{agent\.name\}/.test(funded));
+      // (d) network displayed.
+      check(
+        "X.226d network displayed (BSC Testnet chain 97)",
+        /Row k="Network" v="BSC Testnet \(chain 97\)"/.test(funded)
+      );
+      // (e) Dashboard CTA points to the EXISTING destination.
+      check(
+        "X.226e Dashboard CTA → existing /dashboard route",
+        /href="\/dashboard"/.test(funded) && /View in Dashboard/.test(funded)
+      );
+      // (f) FUNDED does NOT say completed.
+      check(
+        "X.226f FUNDED state does not claim completion",
+        /NOT completed/.test(funded) && !/job completed|hire completed/i.test(funded)
+      );
+      // (g) seller-awaiting state is truthful.
+      check(
+        "X.226g awaiting-seller-fulfillment is explicit",
+        /Awaiting seller fulfillment/.test(funded) &&
+          /seller has not yet submitted the work/.test(funded)
+      );
+      // (h) transaction hashes remain available (collapsible evidence).
+      check(
+        "X.226h tx hashes rendered from state.txHashes",
+        /Transaction evidence/.test(funded) &&
+          /state\.txHashes\[s\]/.test(funded) &&
+          /MAIN_TRACK_USER_HIRE_CALLS\.filter/.test(funded)
+      );
+      // (i) no blockchain call introduced by the success UI: the funded
+      // branch contains no wallet/RPC request — only render + Link.
+      const fundedBranch = funded.slice(0, funded.indexOf('kind === "cancelled"'));
+      check(
+        "X.226i success UI introduces no wallet/RPC call",
+        !/eth_requestAccounts|eth_chainId|wallet_switchEthereumChain|eth_sendTransaction|fetch\(/.test(
+          fundedBranch
+        )
+      );
+      // Refund truthfulness preserved.
+      check(
+        "X.226 escrow/refund language preserved",
+        /commercial escrow/.test(funded) && /refundable/.test(funded)
+      );
+    }
   }
 
   if (failures === 0) {

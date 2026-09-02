@@ -27,14 +27,6 @@ const FOOTER_COLUMNS: readonly {
     links: [
       { href: "https://docs.bnbchain.org", label: "Documentation", external: true },
       { href: "https://github.com/bnb-chain", label: "GitHub", external: true },
-      { href: "/status", label: "Status" },
-    ],
-  },
-  {
-    heading: "Legal",
-    links: [
-      { href: "/privacy", label: "Privacy" },
-      { href: "/terms", label: "Terms" },
     ],
   },
 ] as const;

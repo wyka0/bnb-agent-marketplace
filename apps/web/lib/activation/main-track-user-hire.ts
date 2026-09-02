@@ -346,15 +346,74 @@ export async function runMainTrackUserHireFromWallet(input: {
     try {
       identity = await wallet.connect(input.expectations.expectedChainId);
     } catch (error) {
-      return {
-        ok: false,
-        state: "failed",
-        step: null,
-        reason: `wallet connect failed: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-    if (identity.chainId !== input.expectations.expectedChainId) {
-      return { ok: false, state: "failed", step: null, reason: "wrong chain" };
+      const message = error instanceof Error ? error.message : String(error);
+      if (/wrong chain/i.test(message)) {
+        // X.224 — wrong-chain UX (mirrors the proven dashboard refund flow).
+        // Reachable ONLY inside the user-confirmed hire path (confirmHire);
+        // opening/reviewing the hire never requests a network switch. One
+        // switch request, no automatic retries, no transaction on failure.
+        try {
+          await input.request("wallet_switchEthereumChain", [
+            { chainId: `0x${input.expectations.expectedChainId.toString(16)}` },
+          ]);
+        } catch (switchError) {
+          const switchMessage =
+            switchError instanceof Error ? switchError.message : String(switchError);
+          if (/user rejected|rejected/i.test(switchMessage)) {
+            return {
+              ok: false,
+              state: "failed",
+              step: null,
+              reason:
+                "Network switch declined — BSC Testnet (chain 97) is required for this commercial hire. No transaction was submitted.",
+            };
+          }
+          if (
+            /Unrecognized chain ID|may not be added|add chain|wallet_addEthereumChain|4902|does not (?:exist|support)|not support/i.test(
+              switchMessage
+            )
+          ) {
+            return {
+              ok: false,
+              state: "failed",
+              step: null,
+              reason:
+                "Your wallet could not switch automatically. Please switch to BSC Testnet (chain 97) manually in your wallet, then confirm the hire again. No transaction was submitted.",
+            };
+          }
+          return {
+            ok: false,
+            state: "failed",
+            step: null,
+            reason:
+              "Network switch failed. Please switch your wallet to BSC Testnet (chain 97), then confirm the hire again. No transaction was submitted.",
+          };
+        }
+        // Switch accepted — re-run connect (accounts already granted; chain now
+        // correct). This is a read-only re-check, not a transaction retry. If it
+        // still fails (wallet did not actually switch), stop cleanly.
+        try {
+          identity = await wallet.connect(input.expectations.expectedChainId);
+        } catch (reconnectError) {
+          const reconnectMessage =
+            reconnectError instanceof Error ? reconnectError.message : String(reconnectError);
+          return {
+            ok: false,
+            state: "failed",
+            step: null,
+            reason: /wrong chain/i.test(reconnectMessage)
+              ? "Your wallet is still not on BSC Testnet (chain 97). Switch networks manually, then confirm the hire again. No transaction was submitted."
+              : `wallet connect failed: ${reconnectMessage}`,
+          };
+        }
+      } else {
+        return {
+          ok: false,
+          state: "failed",
+          step: null,
+          reason: `wallet connect failed: ${message}`,
+        };
+      }
     }
     // Bind the connected wallet as the plan client and re-validate the plan.
     const boundPlan: MainTrackUserHirePlan = {
