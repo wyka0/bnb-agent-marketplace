@@ -73,7 +73,9 @@ import {
   sortMarketplaceAgents,
   type MarketplaceData,
   type MarketplaceSortKey,
+  type MarketplaceNetworkScope,
 } from "@/lib/eight004scan/marketplace";
+import { NetworkSelector } from "./network-selector";
 import { discoveryCategoryKeyFromLabel } from "@/lib/eight004scan/discovery/classifier";
 import type { BscDiscoveryData, DiscoveredAgent } from "@/lib/eight004scan/discovery/service";
 import { toAgentCardData } from "@/lib/eight004scan/card";
@@ -207,6 +209,7 @@ function buildQueryString(state: {
   status: Set<string>;
   verifiedBuildersOnly: boolean;
   compareSlugs: Set<string>;
+  network?: string;
 }): string {
   const p = new URLSearchParams();
   if (state.query) p.set("q", state.query);
@@ -222,15 +225,21 @@ function buildQueryString(state: {
   if (state.status.size) p.set("status", [...state.status].join(","));
   if (state.verifiedBuildersOnly) p.set("builder", "verified");
   if (state.compareSlugs.size) p.set("compare", [...state.compareSlugs].join(","));
+  // X.216 — explicit discovery-network selection persists in the URL; the
+  // default ("all") stays out (clean canonical URL).
+  if (state.network && state.network !== "all") p.set("network", state.network);
   return p.toString();
 }
 
 export function MarketplaceView({
   data,
   discovery = null,
+  scope = "all",
 }: {
   data: MarketplaceData;
   discovery?: BscDiscoveryData | null;
+  /** X.216 — discovery-network scope (read-only prop; switching is URL-driven). */
+  scope?: MarketplaceNetworkScope;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -312,6 +321,7 @@ export function MarketplaceView({
     status,
     verifiedBuildersOnly,
     compareSlugs,
+    network: scope,
   });
   React.useEffect(() => {
     const current = searchParams.toString();
@@ -681,6 +691,19 @@ export function MarketplaceView({
                   </ModalContent>
                 </Modal>
               </div>
+              {/* X.216 — symmetric discovery-network selector (confirm-first). */}
+              <NetworkSelector
+                scope={scope}
+                onSwitch={(next) => {
+                  // The EXISTING network-switch mechanism: URL param routing.
+                  // Build the canonical URL with the explicit network param so
+                  // all other toolbar state survives the switch.
+                  const p = new URLSearchParams(searchParams.toString());
+                  p.set("network", next);
+                  p.delete("focus");
+                  router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+                }}
+              />
               <SortDropdown options={SORT_OPTIONS} value={sort} onChange={setSort} />
               <Button
                 variant="outline"

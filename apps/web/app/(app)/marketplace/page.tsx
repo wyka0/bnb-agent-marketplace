@@ -14,7 +14,7 @@
  */
 
 import * as React from "react";
-import { getMarketplaceAgents } from "@/lib/eight004scan/marketplace";
+import { getMarketplaceAgents, parseMarketplaceNetworkScope } from "@/lib/eight004scan/marketplace";
 import { getBscCategoryDiscovery } from "@/lib/eight004scan/discovery/service";
 import { MarketplaceView } from "./marketplace-view";
 
@@ -29,15 +29,21 @@ export default async function MarketplacePage({
   const params = await searchParams;
   const rawQuery = Array.isArray(params.q) ? params.q[0] : params.q;
   const query = rawQuery?.trim() ?? "";
+  // X.216 — the discovery-network scope is URL-driven (?network=mainnet|testnet).
+  // Default "all" keeps the exact X.154 merged catalog; an explicit scope selects
+  // the 8004scan registry the catalog is read from. This NEVER affects the
+  // ERC-8183 commercial-hire chain (HIRED_CHAIN_ID stays 97).
+  const rawNetwork = Array.isArray(params.network) ? params.network[0] : params.network;
+  const scope = parseMarketplaceNetworkScope(rawNetwork);
 
   // Two bounded reads, run in parallel; discovery degrades per-category.
   const [data, discovery] = await Promise.all([
-    getMarketplaceAgents({ limit: 24, page: 1, query }),
+    getMarketplaceAgents({ limit: 24, page: 1, query, scope }),
     getBscCategoryDiscovery({ maxPerCategory: 100 }),
   ]);
   return (
     <React.Suspense fallback={null}>
-      <MarketplaceView data={data} discovery={discovery} />
+      <MarketplaceView data={data} discovery={discovery} scope={scope} />
     </React.Suspense>
   );
 }

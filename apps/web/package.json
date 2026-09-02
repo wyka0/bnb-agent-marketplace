@@ -16,6 +16,7 @@
     "pancakeswap:advantage:verify": "node --experimental-strip-types lib/pancakeswap/advantage.verify.ts",
     "pancakeswap:live:verify": "node --experimental-strip-types lib/pancakeswap/live.verify.ts",
     "marketplace:verify": "node --experimental-strip-types lib/eight004scan/marketplace.verify.ts",
+    "network-selector:verify": "node --experimental-strip-types lib/eight004scan/network-selector.verify.ts",
     "marketplace:live:verify": "node --experimental-strip-types lib/eight004scan/live.verify.ts",
     "discovery:verify": "node --experimental-strip-types lib/eight004scan/discovery/discovery.verify.ts",
     "compare:verify": "node --experimental-strip-types lib/eight004scan/compare.verify.ts",

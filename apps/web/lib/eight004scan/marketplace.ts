@@ -94,12 +94,41 @@ export function toMarketplaceData(result: Scan8004Result<Scan8004Agent>): Market
  * Marketplace list loader — ONE bounded request (page 1, newest first).
  * ------------------------------------------------------------------ */
 
+/**
+ * X.216 — the DISCOVERY NETWORK scope the marketplace catalog is read from.
+ * This is a pure 8004scan application-level filter; it has NO connection to
+ * the ERC-8183 commercial-hire chain (HIRED_CHAIN_ID stays 97 and commercial
+ * hire addresses are untouched).
+ */
+export type MarketplaceNetworkScope = "all" | "mainnet" | "testnet";
+
+/** Canonical labels for the network selector (single source of truth). */
+export const MARKETPLACE_NETWORK_LABELS = {
+  mainnet: "8004scan Mainnet",
+  testnet: "8004scan Testnet",
+} as const;
+
+/** Parse a raw `network` value into a valid scope (invalid → "all"). Pure. */
+export function parseMarketplaceNetworkScope(
+  raw: string | undefined | null
+): MarketplaceNetworkScope {
+  if (raw === "mainnet" || raw === "testnet") return raw;
+  return "all";
+}
+
 export interface GetMarketplaceAgentsOptions {
   page?: number;
   /** Bounded page size, reused from the verified pagination (1..100). */
   limit?: number;
   /** Optional live registry search (name, metadata, or registry identity). */
   query?: string;
+  /**
+   * X.216 — optional discovery-network scope. Default "all" keeps the exact
+   * X.154 behavior (chain 56 + 97 merged). "mainnet" reads only the chain-56
+   * registry; "testnet" reads only the chain-97 registry. Pure read-scope
+   * selection — never touches commercial hire configuration.
+   */
+  scope?: MarketplaceNetworkScope;
 }
 
 /**
@@ -114,27 +143,34 @@ export async function getMarketplaceAgents(
   const page = options.page ?? 1;
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
   const query = options.query?.trim();
+  const scope = options.scope ?? "all";
   if (!has8004ScanApiKey()) {
     return { state: "missing-key", ...EMPTY };
   }
+  const readMainnet = scope === "all" || scope === "mainnet";
+  const readTestnet = scope === "all" || scope === "testnet";
   const [mainnet, bscTestnet] = await Promise.all([
-    listAgents({
-      page,
-      limit,
-      isTestnet: false,
-      sortBy: "created_at",
-      sortOrder: "desc",
-      search: query || undefined,
-    }),
-    listAgents({
-      page,
-      limit,
-      chainId: 97,
-      isTestnet: true,
-      sortBy: "created_at",
-      sortOrder: "desc",
-      search: query || undefined,
-    }),
+    readMainnet
+      ? listAgents({
+          page,
+          limit,
+          isTestnet: false,
+          sortBy: "created_at",
+          sortOrder: "desc",
+          search: query || undefined,
+        })
+      : Promise.resolve({ ok: false, reason: "not-found" as const, status: 404 }),
+    readTestnet
+      ? listAgents({
+          page,
+          limit,
+          chainId: 97,
+          isTestnet: true,
+          sortBy: "created_at",
+          sortOrder: "desc",
+          search: query || undefined,
+        })
+      : Promise.resolve({ ok: false, reason: "not-found" as const, status: 404 }),
   ]);
   // Merge the two BNB-chain reads into one result; a single failing read
   // degrades the whole state honestly (never partial-fabricated rows).
