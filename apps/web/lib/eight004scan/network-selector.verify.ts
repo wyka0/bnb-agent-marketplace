@@ -1,4 +1,4 @@
-/**
+﻿/**
  * X.216 — Network selector verify harness (framework-free, plain node).
  *
  * Run: node --experimental-strip-types lib/eight004scan/network-selector.verify.ts
@@ -30,7 +30,12 @@
  */
 
 import { readFileSync } from "node:fs";
-import { MARKETPLACE_NETWORK_LABELS, parseMarketplaceNetworkScope } from "./marketplace.ts";
+import {
+  MARKETPLACE_NETWORK_LABELS,
+  MARKETPLACE_MAX_PAGE,
+  parseMarketplaceNetworkScope,
+  parseMarketplacePage,
+} from "./marketplace.ts";
 
 let passed = 0;
 let failed = 0;
@@ -139,8 +144,8 @@ check(
     /query, scope \}/.test(pageSource)
 );
 check(
-  "the loader receives the scope (getMarketplaceAgents({ ..., scope }))",
-  /getMarketplaceAgents\(\{ limit: 24, page: 1, query, scope \}\)/.test(pageSource)
+  "the loader receives the scope and page (getMarketplaceAgents({ limit, page, query, scope }))",
+  /getMarketplaceAgents\(\{ limit: 24, page, query, scope \}\)/.test(pageSource)
 );
 
 // --- No wallet / no chain writes (11/12) -------------------------------
@@ -243,6 +248,104 @@ check(
   "loader keeps the exact X.154 merged read as default (scope 'all' path intact)",
   /scope === "all" \|\| scope === "mainnet"/.test(marketplaceSource) &&
     /scope === "all" \|\| scope === "testnet"/.test(marketplaceSource)
+);
+
+// --- X.231 — Mainnet chain purity + honest pagination (structural) --------
+
+// A. Mainnet discovery MUST read chain 56 ONLY. `isTestnet:false` alone returns
+//    every non-testnet EVM chain (Base/Celo/Arbitrum/...) — the defect X.230
+//    found; the explicit chainId pins the read to BNB Smart Chain mainnet.
+const loaderReads = marketplaceSource.slice(
+  marketplaceSource.indexOf("const readMainnet"),
+  marketplaceSource.indexOf("// Merge the two")
+);
+check(
+  "X.231A mainnet read pins chainId: 56 (BNB mainnet ONLY)",
+  /chainId:\s*56/.test(loaderReads) && /isTestnet:\s*false/.test(loaderReads)
+);
+check(
+  "X.231A testnet read remains chainId: 97 + isTestnet: true (unchanged)",
+  /chainId:\s*97/.test(loaderReads) && /isTestnet:\s*true/.test(loaderReads)
+);
+check(
+  "X.231A loader never rewrites registry slugs (chain identity preserved)",
+  !/slug\.replace|slug\.slice|normalizeSlug/i.test(marketplaceSource)
+);
+
+// B. Honest pagination — loader side.
+check(
+  "X.231B MARKETPLACE_MAX_PAGE caps the browsable window (loader-side)",
+  MARKETPLACE_MAX_PAGE === 10 &&
+    /Math\.min\(options\.page \?\? 1, MARKETPLACE_MAX_PAGE\)/.test(marketplaceSource)
+);
+check(
+  "X.231B parseMarketplacePage clamps garbage/unders/overs",
+  parseMarketplacePage(undefined) === 1 &&
+    parseMarketplacePage("abc") === 1 &&
+    parseMarketplacePage("0") === 1 &&
+    parseMarketplacePage("-3") === 1 &&
+    parseMarketplacePage("2") === 2 &&
+    parseMarketplacePage("10") === 10 &&
+    parseMarketplacePage("11") === MARKETPLACE_MAX_PAGE &&
+    parseMarketplacePage("99999") === MARKETPLACE_MAX_PAGE
+);
+check(
+  "X.231B loader passes `page` to both upstream listAgents reads",
+  (loaderReads.match(/page,/g) ?? []).length >= 2
+);
+check(
+  "X.231B merged pagination uses upstream total + hasMore (no fabricated totals)",
+  /r\.meta\.pagination\?\.total/.test(marketplaceSource) &&
+    /r\.meta\.pagination\?\.hasMore === true/.test(marketplaceSource)
+);
+
+// B. Honest pagination — view/page side (structural).
+check(
+  "X.231B page.tsx reads ?page= via parseMarketplacePage and forwards it",
+  /parseMarketplacePage\(rawPage\)/.test(pageSource)
+);
+check(
+  "X.231B truthful count wording distinguishes shown vs indexed",
+  viewSource.includes("Showing {shown} of {(total ?? shown ?? 0).toLocaleString()} indexed agents")
+);
+check(
+  "X.231B Pagination uses real derived totalPages (no hardcoded 1 of 1)",
+  !/Pagination\s+page=\{1\}\s+totalPages=\{1\}/.test(viewSource) &&
+    /catalogTotalPages/.test(viewSource) &&
+    /page=\{page\}/.test(viewSource)
+);
+check(
+  "X.231B totalPages = ceil(totalIndexed / upstreamLimit), capped at MARKETPLACE_MAX_PAGE",
+  /Math\.ceil\(totalIndexed \/ upstreamLimit\)/.test(viewSource) &&
+    /Math\.min\(realTotalPages, MARKETPLACE_MAX_PAGE\)/.test(viewSource)
+);
+check(
+  "X.231B page navigation is URL-driven (page param set on next page)",
+  /p\.set\("page", String\(next\)\)/.test(viewSource)
+);
+check(
+  "X.231B 'more beyond window' is stated honestly (not hidden)",
+  viewSource.includes("Showing the {MARKETPLACE_MAX_PAGE} newest pages") &&
+    viewSource.includes("beyond the newest window")
+);
+check(
+  "X.231B page persists in canonical URL only when > 1",
+  /if \(state\.page && state\.page > 1\) p\.set\("page", String\(state\.page\)\)/.test(viewSource)
+);
+
+// C. Selector/pagination/hire isolation: discovery-only; the hire chain is untouched.
+check(
+  "X.231C neither selector nor pagination touches hire-chain wiring",
+  !/HIRED_CHAIN_ID|MAIN_TRACK_COMMERCE|eth_sendTransaction|eth_requestAccounts/.test(
+    selectorSource
+  ) &&
+    !/HIRED_CHAIN_ID|MAIN_TRACK_COMMERCE|eth_sendTransaction|eth_requestAccounts/.test(
+      viewSource
+    ) &&
+    // page.tsx: code-level absence (an explanatory comment documenting the
+    // isolation is allowed; imports/calls are not).
+    !/import.*HIRED_CHAIN_ID|import.*MAIN_TRACK/.test(pageSource) &&
+    !/eth_sendTransaction|eth_requestAccounts/.test(pageSource)
 );
 
 console.log("");

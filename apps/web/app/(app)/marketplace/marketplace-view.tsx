@@ -71,6 +71,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import {
   applyMarketplaceFilters,
   sortMarketplaceAgents,
+  MARKETPLACE_MAX_PAGE,
   type MarketplaceData,
   type MarketplaceSortKey,
   type MarketplaceNetworkScope,
@@ -92,11 +93,13 @@ function RegistryStatusCount({
   ready,
   shown,
   total,
+  page,
   className,
 }: {
   ready: boolean;
   shown?: number;
   total?: number;
+  page?: number;
   className?: string;
 }) {
   return (
@@ -107,7 +110,10 @@ function RegistryStatusCount({
       <Database className="h-3.5 w-3.5" aria-hidden="true" />
       {ready ? (
         <>
-          {shown} / {total ?? shown} agents · 8004scan
+          {/* X.231 — truthful counts: displayed results vs total INDEXED
+              registry records are different things and are stated as such. */}
+          Showing {shown} of {(total ?? shown ?? 0).toLocaleString()} indexed agents · newest first
+          {page && page > 1 ? ` · page ${page}` : ""}
         </>
       ) : (
         "Waiting for ERC-8004 Registry"
@@ -210,6 +216,7 @@ function buildQueryString(state: {
   verifiedBuildersOnly: boolean;
   compareSlugs: Set<string>;
   network?: string;
+  page?: number;
 }): string {
   const p = new URLSearchParams();
   if (state.query) p.set("q", state.query);
@@ -228,6 +235,8 @@ function buildQueryString(state: {
   // X.216 — explicit discovery-network selection persists in the URL; the
   // default ("all") stays out (clean canonical URL).
   if (state.network && state.network !== "all") p.set("network", state.network);
+  // X.231 — catalog page persists in the URL; page 1 stays out (canonical).
+  if (state.page && state.page > 1) p.set("page", String(state.page));
   return p.toString();
 }
 
@@ -235,11 +244,14 @@ export function MarketplaceView({
   data,
   discovery = null,
   scope = "all",
+  page = 1,
 }: {
   data: MarketplaceData;
   discovery?: BscDiscoveryData | null;
   /** X.216 — discovery-network scope (read-only prop; switching is URL-driven). */
   scope?: MarketplaceNetworkScope;
+  /** X.231 — current catalog page (read-only prop; navigation is URL-driven). */
+  page?: number;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -322,6 +334,7 @@ export function MarketplaceView({
     verifiedBuildersOnly,
     compareSlugs,
     network: scope,
+    page,
   });
   React.useEffect(() => {
     const current = searchParams.toString();
@@ -513,6 +526,21 @@ export function MarketplaceView({
   const cards = React.useMemo(() => rows.map(toAgentCardData), [rows]);
   // Discovery buckets are single bounded pages — no pagination exists there.
   const total = discoveryMode ? rows.length : (data.pagination?.total ?? rows.length);
+
+  // X.231 — truthful pagination derived from the ACTUAL upstream metadata:
+  // totalPages = ceil(totalIndexed / limit); the UI deliberately caps the
+  // browsable window at MARKETPLACE_MAX_PAGE pages (loader-enforced too).
+  const totalIndexed = discoveryMode ? null : (data.pagination?.total ?? null);
+  const upstreamLimit = data.pagination?.limit ?? 24;
+  const upstreamHasMore = data.pagination?.hasMore === true;
+  const realTotalPages =
+    totalIndexed != null ? Math.max(1, Math.ceil(totalIndexed / upstreamLimit)) : 1;
+  const catalogTotalPages = Math.min(realTotalPages, MARKETPLACE_MAX_PAGE);
+  const hasMoreBeyondWindow =
+    !discoveryMode &&
+    upstreamHasMore &&
+    page >= MARKETPLACE_MAX_PAGE &&
+    realTotalPages > MARKETPLACE_MAX_PAGE;
 
   const goToAgent = React.useCallback(
     (card: { href?: string }) => {
@@ -731,6 +759,7 @@ export function MarketplaceView({
             ready={catalogReady}
             shown={rows.length}
             total={total}
+            page={page}
             className="hidden md:inline-flex"
           />
         </SearchToolbar>
@@ -904,12 +933,37 @@ export function MarketplaceView({
             </div>
           )}
 
-          {/* Pagination — first bounded page only (no fetch loop); the real
-              page count is shown in the toolbar. Discovery buckets are single
-              bounded pages → no pagination in discovery mode. */}
+          {/* X.231 — shallow, truthful pagination. totalPages comes from the
+              ACTUAL upstream pagination metadata (total / limit), and the
+              market deliberately exposes only the first MARKETPLACE_MAX_PAGE
+              pages (newest-first browsing + search) instead of crawling the
+              registry; when more indexed pages exist beyond the window, that
+              is stated rather than hidden. Discovery buckets are single
+              bounded pages — no pagination in discovery mode. */}
           {!discoveryMode ? (
-            <div className="mt-8 flex justify-center">
-              <Pagination page={1} totalPages={1} onPageChange={() => undefined} />
+            <div className="mt-8 flex flex-col items-center gap-2">
+              <Pagination
+                page={page}
+                totalPages={catalogTotalPages}
+                onPageChange={(next) => {
+                  // URL-driven page navigation preserving every other param
+                  // (network scope, query, filters). Bounded by the loader cap.
+                  const p = new URLSearchParams(searchParams.toString());
+                  p.delete("focus");
+                  if (next > 1) p.set("page", String(next));
+                  else p.delete("page");
+                  router.replace(p.toString() ? `${pathname}?${p.toString()}` : pathname, {
+                    scroll: false,
+                  });
+                }}
+              />
+              {hasMoreBeyondWindow ? (
+                <p className="text-xs text-muted-foreground">
+                  Showing the {MARKETPLACE_MAX_PAGE} newest pages —{" "}
+                  {(totalIndexed ?? 0).toLocaleString()} agents are indexed. Use search to explore
+                  beyond the newest window.
+                </p>
+              ) : null}
             </div>
           ) : null}
         </MarketplaceContent>

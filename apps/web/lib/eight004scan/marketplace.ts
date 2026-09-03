@@ -102,6 +102,21 @@ export function toMarketplaceData(result: Scan8004Result<Scan8004Agent>): Market
  */
 export type MarketplaceNetworkScope = "all" | "mainnet" | "testnet";
 
+/**
+ * X.231 — conservative UI pagination depth. Upstream supports thousands of
+ * pages (~487k records); the marketplace intentionally exposes only a shallow
+ * window (newest-first browsing + search) instead of crawling the registry.
+ * Reads beyond this cap are rejected before any upstream request is made.
+ */
+export const MARKETPLACE_MAX_PAGE = 10;
+
+/** Parse a raw page number (1-indexed) into a safe, capped page. Pure. */
+export function parseMarketplacePage(raw: string | undefined | null): number {
+  const n = typeof raw === "string" ? Number.parseInt(raw, 10) : Number.NaN;
+  if (!Number.isInteger(n) || n < 1) return 1;
+  return Math.min(n, MARKETPLACE_MAX_PAGE);
+}
+
 /** Canonical labels for the network selector (single source of truth). */
 export const MARKETPLACE_NETWORK_LABELS = {
   mainnet: "8004scan Mainnet",
@@ -140,7 +155,7 @@ export interface GetMarketplaceAgentsOptions {
 export async function getMarketplaceAgents(
   options: GetMarketplaceAgentsOptions = {}
 ): Promise<MarketplaceData> {
-  const page = options.page ?? 1;
+  const page = Math.min(options.page ?? 1, MARKETPLACE_MAX_PAGE);
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
   const query = options.query?.trim();
   const scope = options.scope ?? "all";
@@ -154,6 +169,10 @@ export async function getMarketplaceAgents(
       ? listAgents({
           page,
           limit,
+          // X.231 — "Mainnet" means BNB Smart Chain mainnet ONLY (chain 56).
+          // `isTestnet=false` alone would return every non-testnet EVM chain
+          // (Base/Celo/Arbitrum/…); the explicit chainId pins the read.
+          chainId: 56,
           isTestnet: false,
           sortBy: "created_at",
           sortOrder: "desc",

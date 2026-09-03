@@ -14,7 +14,11 @@
  */
 
 import * as React from "react";
-import { getMarketplaceAgents, parseMarketplaceNetworkScope } from "@/lib/eight004scan/marketplace";
+import {
+  getMarketplaceAgents,
+  parseMarketplaceNetworkScope,
+  parseMarketplacePage,
+} from "@/lib/eight004scan/marketplace";
 import { getBscCategoryDiscovery } from "@/lib/eight004scan/discovery/service";
 import { MarketplaceView } from "./marketplace-view";
 
@@ -35,15 +39,19 @@ export default async function MarketplacePage({
   // ERC-8183 commercial-hire chain (HIRED_CHAIN_ID stays 97).
   const rawNetwork = Array.isArray(params.network) ? params.network[0] : params.network;
   const scope = parseMarketplaceNetworkScope(rawNetwork);
+  // X.231 — shallow, truthful pagination: ?page= (1-indexed, capped) drives
+  // the upstream page parameter. Bounded reads per page; no registry crawl.
+  const rawPage = Array.isArray(params.page) ? params.page[0] : params.page;
+  const page = parseMarketplacePage(rawPage);
 
   // Two bounded reads, run in parallel; discovery degrades per-category.
   const [data, discovery] = await Promise.all([
-    getMarketplaceAgents({ limit: 24, page: 1, query, scope }),
+    getMarketplaceAgents({ limit: 24, page, query, scope }),
     getBscCategoryDiscovery({ maxPerCategory: 100 }),
   ]);
   return (
     <React.Suspense fallback={null}>
-      <MarketplaceView data={data} discovery={discovery} scope={scope} />
+      <MarketplaceView data={data} discovery={discovery} scope={scope} page={page} />
     </React.Suspense>
   );
 }
