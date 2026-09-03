@@ -348,6 +348,112 @@ check(
     !/eth_sendTransaction|eth_requestAccounts/.test(pageSource)
 );
 
+// --- X.232 — Leaderboard network scoping + Profile network truthfulness ----
+{
+  const leaderboardLib = readFileSync(new URL("./leaderboard.ts", import.meta.url), "utf8");
+  const leaderboardPage = readFileSync(
+    new URL("../../app/(app)/leaderboards/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const leaderboardView = readFileSync(
+    new URL("../../app/(app)/leaderboards/leaderboards-view.tsx", import.meta.url),
+    "utf8"
+  );
+  const profilePage = readFileSync(
+    new URL("../../app/(app)/profile/page.tsx", import.meta.url),
+    "utf8"
+  );
+  const heroFile = readFileSync(new URL("../../components/home/hero.tsx", import.meta.url), "utf8");
+
+  // Leaderboard = BNB chains only.
+  const lbReads = leaderboardLib.slice(
+    leaderboardLib.indexOf("const readMainnet"),
+    leaderboardLib.indexOf("// Merge the two")
+  );
+  check(
+    "X.232A leaderboard mainnet read pins chainId: 56 (BNB mainnet ONLY)",
+    /chainId:\s*56/.test(lbReads) && /isTestnet:\s*false/.test(lbReads)
+  );
+  check(
+    "X.232A leaderboard testnet read pins chainId: 97",
+    /chainId:\s*97/.test(lbReads) && /isTestnet:\s*true/.test(lbReads)
+  );
+  check(
+    "X.232A leaderboard scope is URL-driven (?network= via parseLeaderboardNetworkScope)",
+    /parseLeaderboardNetworkScope\(rawNetwork\)/.test(leaderboardPage) &&
+      /scope=\{scope\}/.test(leaderboardPage)
+  );
+  check(
+    "X.232A leaderboard pagination is URL-driven (?page= capped at MARKETPLACE_MAX_PAGE)",
+    /parseMarketplacePage\(rawPage\)/.test(leaderboardPage) && /page=\{page\}/.test(leaderboardPage)
+  );
+  check(
+    "X.232A leaderboard pagination uses real totalPages (no hardcoded 1 of 1)",
+    !/Pagination\s+page=\{1\}\s+totalPages=\{1\}/.test(leaderboardView) &&
+      /leaderboardTotalPages/.test(leaderboardView)
+  );
+  check(
+    "X.232A leaderboard NETWORK_OPTIONS are BNB-scoped (no Base/Ethereum filter options)",
+    /"BNB Mainnet"/.test(leaderboardView) &&
+      /"BNB Testnet"/.test(leaderboardView) &&
+      // the NETWORK_OPTIONS list itself must not include Base/Ethereum as filter values
+      !/\{ value: "base"/.test(leaderboardView) &&
+      !/\{ value: "ethereum"/.test(leaderboardView)
+  );
+  check(
+    "X.232A leaderboard scope switching is URL-driven (no stale client-only state)",
+    /p\.set\("network", next\)/.test(leaderboardView) &&
+      !/setNetwork\("all"\)/.test(leaderboardView)
+  );
+  check(
+    "X.232A leaderboard cannot touch hire chain (no hire wiring in code)",
+    // code-level absence (HIRED_CHAIN_ID may appear in explanatory comments)
+    !/import.*HIRED_CHAIN_ID|HIRED_CHAIN_ID\s*=/.test(leaderboardLib) &&
+      !/eth_sendTransaction/.test(leaderboardLib) &&
+      !/HIRED_CHAIN_ID|eth_sendTransaction/.test(leaderboardView)
+  );
+
+  // Profile: wallet chain vs auth chain distinction.
+  check(
+    "X.232C profile reads wallet chain read-only (eth_chainId only, no prompts)",
+    /eth_chainId/.test(profilePage) &&
+      !/eth_requestAccounts|wallet_switchEthereumChain|personal_sign|eth_sign/.test(profilePage)
+  );
+  check(
+    "X.232C profile displays wallet network and auth chain as SEPARATE rows",
+    /Wallet network/.test(profilePage) &&
+      /chainDisplayName\(walletChainId\)/.test(profilePage) &&
+      /chainDisplayName\(authChain\)/.test(profilePage)
+  );
+  check(
+    "X.232C profile warns when wallet chain differs from auth chain",
+    /walletDiffersFromAuth/.test(profilePage) &&
+      /Sign in again after switching networks/.test(profilePage)
+  );
+  check(
+    "X.232C profile does NOT silently claim the SIWE session moved networks",
+    !/identity\.chainId\s*=\s*walletChainId/.test(profilePage)
+  );
+  check(
+    "X.232C profile has no automatic signature/transaction/switch trigger",
+    !/ethereum\.request\(\{ method: "(eth_sendTransaction|personal_sign|wallet_switchEthereumChain|eth_requestAccounts)"/.test(
+      profilePage
+    )
+  );
+
+  // Landing: ONE grid background system.
+  check(
+    "X.232E hero no longer layers a second grid background",
+    !/bg-\[linear-gradient\(to_right/.test(heroFile) && !/bg-\[size:56px_56px\]/.test(heroFile)
+  );
+  check(
+    "X.232E body-level grid in globals.css remains the single system",
+    /linear-gradient\(to right, hsl\(var\(--border\) \/ 0\.35\) 1px, transparent 1px\)/.test(
+      readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8")
+    )
+  );
+}
+
 console.log("");
 console.log(`X.216 network selector verify: ${passed} checks passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

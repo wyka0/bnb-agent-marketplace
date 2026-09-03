@@ -4,9 +4,12 @@ import { ArrowRight } from "lucide-react";
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.3)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.3)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
-      </div>
+      {/* X.232 — the hero previously layered a SECOND grid background over the
+          body-level grid (globals.css), producing doubled/overlapping lines.
+          The body grid is the ONE intentional background grid system; this
+          overlay is removed. Visual identity (dark BNB aesthetic, spacing,
+          hero layout, typography, branding) is unchanged. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0" />
 
       <div className="container relative flex flex-col items-center py-16 text-center sm:py-20 lg:py-24">
         <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">

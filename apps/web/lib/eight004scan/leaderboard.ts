@@ -17,6 +17,11 @@
 import { has8004ScanApiKey, listAgents } from "./client";
 import { normalizeAgents } from "./normalize";
 import type { LeaderboardData, LeaderboardDataState } from "./leaderboard-types";
+import {
+  MARKETPLACE_MAX_PAGE,
+  parseMarketplaceNetworkScope,
+  type MarketplaceNetworkScope,
+} from "./marketplace";
 
 const EMPTY: Omit<LeaderboardData, "state"> = {
   agents: [],
@@ -24,11 +29,23 @@ const EMPTY: Omit<LeaderboardData, "state"> = {
   lastIndexed: null,
 };
 
+/**
+ * X.232 — leaderboard discovery-network scope. Mirrors the marketplace model:
+ * "mainnet" = BNB Smart Chain mainnet ONLY (chain 56); "testnet" = chain 97
+ * ONLY; "all" = both BNB chains merged (one bounded read each). Discovery-only
+ * — never touches the commercial-hire chain (HIRED_CHAIN_ID stays 97).
+ */
+export type LeaderboardNetworkScope = MarketplaceNetworkScope;
+
+/** Parse a raw network value into a valid leaderboard scope (invalid → "all"). Pure. */
+export { parseMarketplaceNetworkScope as parseLeaderboardNetworkScope };
+
 export interface GetLeaderboardOptions {
   limit?: number;
   page?: number;
   search?: string;
-  chainId?: number;
+  /** X.232 — discovery-network scope (default "all" = BNB 56 + 97 merged). */
+  scope?: LeaderboardNetworkScope;
 }
 
 /**
@@ -43,39 +60,79 @@ export async function getLeaderboard(
     return { state: "missing-key", ...EMPTY };
   }
 
-  // 2) Real request (request-time only).
-  const result = await listAgents({
-    page: options.page ?? 1,
-    limit: Math.min(Math.max(options.limit ?? 20, 1), 100),
-    search: options.search,
-    chainId: options.chainId,
-    sortBy: "total_score", // documented sort field
-    sortOrder: "desc",
-    isTestnet: false,
-  });
+  const page = Math.min(options.page ?? 1, MARKETPLACE_MAX_PAGE);
+  const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
+  const scope = options.scope ?? "all";
+  const readMainnet = scope === "all" || scope === "mainnet";
+  const readTestnet = scope === "all" || scope === "testnet";
 
-  if (!result.ok) {
+  // 2) Real requests (request-time only). One bounded read per BNB chain;
+  //    a single failing read degrades honestly (never partial-fabricated rows).
+  const [mainnet, bscTestnet] = await Promise.all([
+    readMainnet
+      ? listAgents({
+          page,
+          limit,
+          search: options.search,
+          // X.232 — "Mainnet" means BNB Smart Chain mainnet ONLY (chain 56).
+          chainId: 56,
+          isTestnet: false,
+          sortBy: "total_score",
+          sortOrder: "desc",
+        })
+      : Promise.resolve({ ok: false, reason: "not-found" as const, status: 404 }),
+    readTestnet
+      ? listAgents({
+          page,
+          limit,
+          search: options.search,
+          chainId: 97,
+          isTestnet: true,
+          sortBy: "total_score",
+          sortOrder: "desc",
+        })
+      : Promise.resolve({ ok: false, reason: "not-found" as const, status: 404 }),
+  ]);
+
+  const okResults = [mainnet, bscTestnet].filter((r) => r.ok) as Array<{
+    ok: true;
+    data: import("./types").Scan8004Agent[];
+    meta: import("./types").Scan8004Meta;
+  }>;
+  if (okResults.length === 0) {
+    const failed = !mainnet.ok ? mainnet : bscTestnet;
+    if (failed.ok) {
+      return { state: "error", ...EMPTY };
+    }
     const state: LeaderboardDataState =
-      result.reason === "unauthorized"
+      failed.status === 401 || failed.status === 403
         ? "unauthorized"
-        : result.reason === "rate-limited"
+        : failed.status === 429
           ? "rate-limited"
-          : result.reason === "bad-request" || result.reason === "not-found"
+          : failed.status === 400 || failed.status === 404
             ? "error"
             : "offline";
     return { state, ...EMPTY };
   }
 
-  const agents = normalizeAgents(result.data);
+  // Merge the two BNB-chain reads; rankings stay network-mixing only in the
+  // "all" scope (both BNB chains — never non-BNB chains).
+  const agents = normalizeAgents(okResults.flatMap((r) => r.data));
+  const pagination = {
+    page,
+    limit,
+    total: okResults.reduce((sum, r) => sum + (r.meta.pagination?.total ?? 0), 0),
+    hasMore: okResults.some((r) => r.meta.pagination?.hasMore === true),
+  };
   if (agents.length === 0) {
-    return { state: "empty", ...EMPTY, pagination: result.meta.pagination ?? null };
+    return { state: "empty", ...EMPTY, pagination };
   }
 
   return {
     state: "ready",
     agents,
-    pagination: result.meta.pagination ?? null,
-    lastIndexed: result.meta.timestamp ?? null,
+    pagination,
+    lastIndexed: okResults.map((r) => r.meta.timestamp ?? null).find((t) => t !== null) ?? null,
   };
 }
 

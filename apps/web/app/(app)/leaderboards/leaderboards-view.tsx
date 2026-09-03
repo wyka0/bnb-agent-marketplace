@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 /**
- * Leaderboards view — Sprint 2F UI (design frozen) + Sprint 2G data wiring.
+ * Leaderboards view â€” Sprint 2F UI (design frozen) + Sprint 2G data wiring.
  *
  * The visual design, layout, columns, filters, metric labels, and copy are
  * UNCHANGED from Sprint 2F. Sprint 2G only feeds real, normalized 8004scan data
@@ -9,9 +9,9 @@
  * When no data is available (no API key, error, empty, etc.) the page falls
  * back to the exact honest "Waiting for ERC-8004 Registry" states shipped in 2F.
  *
- * URL state: /leaderboards?metric=…&category=…&time=… (+ q= for search).
+ * URL state: /leaderboards?metric=â€¦&category=â€¦&time=â€¦ (+ q= for search).
  *
- * Columns (desktop table; ≤768px cards):
+ * Columns (desktop table; â‰¤768px cards):
  *   Rank | Agent | Category | Protocol | Active Metric | Risk | Verification | Freshness
  */
 
@@ -83,10 +83,9 @@ const CATEGORY_OPTIONS = [
 ] as const;
 
 const NETWORK_OPTIONS = [
-  { value: "all", label: "All networks" },
-  { value: "bnb", label: "BNB Chain" },
-  { value: "base", label: "Base" },
-  { value: "ethereum", label: "Ethereum" },
+  { value: "all", label: "All BNB networks" },
+  { value: "mainnet", label: "BNB Mainnet" },
+  { value: "testnet", label: "BNB Testnet" },
 ] as const;
 
 const TIME_OPTIONS = [
@@ -105,11 +104,11 @@ const DEFAULT_SORT = "desc";
 const SKELETON_ROWS = 8;
 const SKELETON_CARDS = 8;
 
-/** View states — the Sprint 2F set, now driven by real data availability. */
+/** View states â€” the Sprint 2F set, now driven by real data availability. */
 type ViewState =
   "ready" | "loading" | "no-results" | "no-data" | "offline" | "no-metric" | "unavailable";
 
-/** Map the server data state → the existing view state (design unchanged). */
+/** Map the server data state â†’ the existing view state (design unchanged). */
 function toViewState(dataState: LeaderboardData["state"], hasQuery: boolean): ViewState {
   switch (dataState) {
     case "ready":
@@ -125,16 +124,16 @@ function toViewState(dataState: LeaderboardData["state"], hasQuery: boolean): Vi
       return "offline";
     case "missing-key":
     default:
-      // Honest pending/unavailable — the original Sprint 2F skeleton state.
+      // Honest pending/unavailable â€” the original Sprint 2F skeleton state.
       return "unavailable";
   }
 }
 
 /** Freshness label from a real ISO timestamp (no fabrication when absent). */
 function freshnessLabel(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "â€”";
   const t = Date.parse(iso);
-  if (Number.isNaN(t)) return "—";
+  if (Number.isNaN(t)) return "â€”";
   const diffMs = Date.now() - t;
   const min = Math.round(diffMs / 60000);
   if (min < 1) return "just now";
@@ -145,7 +144,7 @@ function freshnessLabel(iso: string | null): string {
   return `${d}d ago`;
 }
 
-/** Chain id → display label (only where known; else the raw id). */
+/** Chain id â†’ display label (only where known; else the raw id). */
 function chainLabel(chainId: number): string {
   switch (chainId) {
     case 1:
@@ -195,10 +194,20 @@ function buildQueryString(state: {
 }
 
 /* ------------------------------------------------------------------ *
- * View (client) — receives normalized data from the server component.
+ * View (client) â€” receives normalized data from the server component.
  * ------------------------------------------------------------------ */
 
-export function LeaderboardsView({ data }: { data: LeaderboardData }) {
+export function LeaderboardsView({
+  data,
+  scope = "all",
+  page = 1,
+}: {
+  data: LeaderboardData;
+  /** X.232 â€” discovery-network scope (read-only prop; switching is URL-driven). */
+  scope?: "all" | "mainnet" | "testnet";
+  /** X.232 â€” current catalog page (read-only prop; navigation is URL-driven). */
+  page?: number;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -236,14 +245,8 @@ export function LeaderboardsView({ data }: { data: LeaderboardData }) {
     )
   );
 
-  const [network, setNetwork] = React.useState<string>(() =>
-    readOne(
-      initial,
-      "network",
-      NETWORK_OPTIONS.map((n) => n.value),
-      "all"
-    )
-  );
+  // X.232 â€” `network` state replaced by the URL-driven `scope` prop (server
+  // re-reads on switch); no client-only network state remains.
   const [sort, setSort] = React.useState<string>(() =>
     readOne(
       initial,
@@ -283,9 +286,13 @@ export function LeaderboardsView({ data }: { data: LeaderboardData }) {
     setQuery("");
     setCategory(new Set());
     setTime("all-time");
-    setNetwork("all");
     setSort(DEFAULT_SORT);
-  }, []);
+    // X.232 â€” network scope is URL-driven; reset also clears it.
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("network");
+    p.delete("page");
+    router.replace(p.toString() ? `${pathname}?${p.toString()}` : pathname, { scroll: false });
+  }, [router, pathname, searchParams]);
 
   const metricLabel = METRIC_OPTIONS.find((o) => o.value === metric)?.label ?? metric;
 
@@ -298,11 +305,22 @@ export function LeaderboardsView({ data }: { data: LeaderboardData }) {
   }, [data, query]);
 
   const viewState = toViewState(data.state, query.trim().length > 0 || activeFilters.length > 0);
-  // When a search yields no local matches but data is ready → honest no-results.
+  // When a search yields no local matches but data is ready â†’ honest no-results.
   const effectiveViewState: ViewState =
     viewState === "ready" && rows.length === 0 ? "no-results" : viewState;
 
-  const lastIndexedLabel = data.lastIndexed ? freshnessLabel(data.lastIndexed) : "—";
+  const lastIndexedLabel = data.lastIndexed ? freshnessLabel(data.lastIndexed) : "â€”";
+  // X.232 — truthful pagination derived from ACTUAL upstream metadata.
+  const leaderboardTotalIndexed = data.pagination?.total ?? null;
+  const leaderboardUpstreamLimit = data.pagination?.limit ?? 20;
+  const leaderboardUpstreamHasMore = data.pagination?.hasMore === true;
+  const leaderboardRealTotalPages =
+    leaderboardTotalIndexed != null
+      ? Math.max(1, Math.ceil(leaderboardTotalIndexed / leaderboardUpstreamLimit))
+      : 1;
+  const leaderboardTotalPages = Math.min(leaderboardRealTotalPages, 10);
+  const leaderboardHasMoreBeyondWindow =
+    leaderboardUpstreamHasMore && page >= 10 && leaderboardRealTotalPages > 10;
 
   const filterPanel = (
     <FilterSidebar
@@ -345,8 +363,18 @@ export function LeaderboardsView({ data }: { data: LeaderboardData }) {
               name="network"
               value={n.value}
               label={n.label}
-              checked={network === n.value}
-              onSelect={setNetwork}
+              checked={scope === n.value}
+              onSelect={(next) => {
+                // X.232 â€” URL-driven scope switching (server re-reads); resets
+                // to page 1 on scope change. Discovery-only; hire untouched.
+                const p = new URLSearchParams(searchParams.toString());
+                if (next !== "all") p.set("network", next);
+                else p.delete("network");
+                p.delete("page");
+                router.replace(p.toString() ? `${pathname}?${p.toString()}` : pathname, {
+                  scroll: false,
+                });
+              }}
             />
           ))}
         </FilterGroup>
@@ -411,7 +439,7 @@ export function LeaderboardsView({ data }: { data: LeaderboardData }) {
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder="Search agents by name or capability…"
+            placeholder="Search agents by name or capabilityâ€¦"
             label="Search leaderboards"
           />
           <span className="hidden md:inline-flex">
@@ -455,15 +483,36 @@ export function LeaderboardsView({ data }: { data: LeaderboardData }) {
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>Last indexed: {lastIndexedLabel}</span>
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true">Â·</span>
               <span>Ranking metric: {metricLabel}</span>
             </div>
           </div>
 
           {renderBody(effectiveViewState, query, rows, resetAll)}
 
-          <div className="mt-6 flex justify-center">
-            <Pagination page={1} totalPages={1} onPageChange={() => undefined} />
+          {/* X.232 â€” truthful, bounded pagination from REAL upstream metadata.
+              Discovery buckets/leaderboards deliberately expose only the first
+              MARKETPLACE_MAX_PAGE pages (score-ordered browsing + search). */}
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <Pagination
+              page={page}
+              totalPages={leaderboardTotalPages}
+              onPageChange={(next) => {
+                const p = new URLSearchParams(searchParams.toString());
+                if (next > 1) p.set("page", String(next));
+                else p.delete("page");
+                router.replace(p.toString() ? `${pathname}?${p.toString()}` : pathname, {
+                  scroll: false,
+                });
+              }}
+            />
+            {leaderboardHasMoreBeyondWindow ? (
+              <p className="text-xs text-muted-foreground">
+                Showing the 10 highest-scored pages â€”{" "}
+                {(data.pagination?.total ?? 0).toLocaleString()} agents are indexed. Use search to
+                explore beyond the top window.
+              </p>
+            ) : null}
           </div>
         </MarketplaceContent>
       </MarketplaceLayout>
@@ -474,7 +523,7 @@ export function LeaderboardsView({ data }: { data: LeaderboardData }) {
 }
 
 /* ------------------------------------------------------------------ *
- * Body renderer — one branch per honest view state.
+ * Body renderer â€” one branch per honest view state.
  * ------------------------------------------------------------------ */
 
 function renderBody(
@@ -549,7 +598,7 @@ function renderBody(
 }
 
 /* ------------------------------------------------------------------ *
- * Mobile filter drawer (native modal — no new DS primitive).
+ * Mobile filter drawer (native modal â€” no new DS primitive).
  * ------------------------------------------------------------------ */
 
 function MobileFilterButton({
@@ -585,8 +634,8 @@ function MobileFilterButton({
 }
 
 /* ------------------------------------------------------------------ *
- * Real data — desktop table (same 8 columns as the Sprint 2F skeleton).
- * Unsupported fields render "—" (never fabricated).
+ * Real data â€” desktop table (same 8 columns as the Sprint 2F skeleton).
+ * Unsupported fields render "â€”" (never fabricated).
  * ------------------------------------------------------------------ */
 
 const TABLE_HEADERS = [
@@ -604,7 +653,7 @@ const TABLE_HEADERS = [
 function Dash({ label }: { label?: string }) {
   return (
     <span className="text-muted-foreground/70" aria-label={label ?? "Not available"}>
-      —
+      â€”
     </span>
   );
 }
@@ -648,7 +697,7 @@ function LeaderboardRow({ agent, ordinal }: { agent: LeaderboardAgent; ordinal: 
         </Link>
       </TableCell>
       <TableCell>
-        {/* 8004scan does not classify product category → honest — */}
+        {/* 8004scan does not classify product category â†’ honest â€” */}
         <Dash label="Category not provided by 8004scan" />
       </TableCell>
       <TableCell>
@@ -663,7 +712,7 @@ function LeaderboardRow({ agent, ordinal }: { agent: LeaderboardAgent; ordinal: 
         {agent.registryScore != null ? agent.registryScore : <Dash label="No score yet" />}
       </TableCell>
       <TableCell>
-        {/* Risk not provided by 8004scan → honest — */}
+        {/* Risk not provided by 8004scan â†’ honest â€” */}
         <Dash label="Risk not provided by 8004scan" />
       </TableCell>
       <TableCell>
@@ -677,7 +726,7 @@ function LeaderboardRow({ agent, ordinal }: { agent: LeaderboardAgent; ordinal: 
 }
 
 /* ------------------------------------------------------------------ *
- * Real data — mobile cards (one row per agent).
+ * Real data â€” mobile cards (one row per agent).
  * ------------------------------------------------------------------ */
 
 function LeaderboardCardList({ rows }: { rows: LeaderboardAgent[] }) {
@@ -696,10 +745,10 @@ function LeaderboardCardList({ rows }: { rows: LeaderboardAgent[] }) {
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="tabular-nums">
-              {a.registryScore != null ? `Score ${a.registryScore}` : "Score —"}
+              {a.registryScore != null ? `Score ${a.registryScore}` : "Score â€”"}
             </span>
             <MarketplaceVerificationBadge state={a.verification} size="sm" />
-            <span>{a.updatedAt ? freshnessLabel(a.updatedAt) : "—"}</span>
+            <span>{a.updatedAt ? freshnessLabel(a.updatedAt) : "â€”"}</span>
             <span>{chainLabel(a.chainId)}</span>
           </div>
         </div>
@@ -709,7 +758,7 @@ function LeaderboardCardList({ rows }: { rows: LeaderboardAgent[] }) {
 }
 
 /* ------------------------------------------------------------------ *
- * Desktop table skeleton (Sprint 2F — unchanged).
+ * Desktop table skeleton (Sprint 2F â€” unchanged).
  * ------------------------------------------------------------------ */
 
 function LeaderboardTableSkeleton({ rows }: { rows: number }) {
@@ -767,7 +816,7 @@ function LeaderboardRowSkeleton() {
 }
 
 /* ------------------------------------------------------------------ *
- * Mobile card skeleton (Sprint 2F — unchanged).
+ * Mobile card skeleton (Sprint 2F â€” unchanged).
  * ------------------------------------------------------------------ */
 
 function LeaderboardCardSkeletonList({ count }: { count: number }) {
@@ -799,7 +848,7 @@ function LeaderboardCardSkeleton() {
 }
 
 /* ------------------------------------------------------------------ *
- * Methodology — native <details> disclosure (Sprint 2F — unchanged).
+ * Methodology â€” native <details> disclosure (Sprint 2F â€” unchanged).
  * ------------------------------------------------------------------ */
 
 function Methodology() {
@@ -815,7 +864,7 @@ function Methodology() {
       <div className="mt-3 text-sm text-muted-foreground">
         <p>
           Leaderboards rank agents by the active metric (default: Registry Score). Rank is an
-          ordinal position (1, 2, 3 …) — not a 0–100 score. When two agents tie on the primary
+          ordinal position (1, 2, 3 â€¦) â€” not a 0â€“100 score. When two agents tie on the primary
           metric, the following tie-breaks decide the order:
         </p>
         <ol className="mt-2 list-decimal pl-5">
@@ -827,7 +876,7 @@ function Methodology() {
         </ol>
         <p className="mt-2">
           Ranks update on each ERC-8004 Registry sync. Until the registry is connected, all slots
-          show — and are flagged pending.
+          show â€” and are flagged pending.
         </p>
       </div>
     </details>
