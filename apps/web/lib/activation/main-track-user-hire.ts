@@ -246,6 +246,12 @@ export function prepareMainTrackUserHire(input: {
   if (price < 0n) {
     return { ok: false, reason: "Quote price is negative." };
   }
+  // X.242 — a zero-price quote can never fund a real hire (the fund step
+  // would transfer nothing and the final-state check would be meaningless).
+  // Fail closed on zero for BOTH chains.
+  if (price === 0n) {
+    return { ok: false, reason: "Quote price is zero; a hire requires a positive $U budget." };
+  }
   const expiry = q.response?.quote_expires_at;
   if (typeof expiry !== "number" || !Number.isSafeInteger(expiry) || expiry <= input.nowSeconds) {
     return { ok: false, reason: "The quote has expired." };

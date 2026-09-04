@@ -1,5 +1,5 @@
 /**
- * X.241 — Mainnet preflight (READ-ONLY).
+ * X.241/X.242 — Mainnet preflight (READ-ONLY).
  *
  * Verifies the complete Mainnet hire readiness WITHOUT any write, signature,
  * job, approval, or transfer. Run:
@@ -10,6 +10,9 @@
  *   P4  agent/chain/registry/owner/endpoint/health
  *   P5  buyer $U readiness (REPORT-ONLY; READY or BLOCKED — INSUFFICIENT BUYER $U)
  *   P7  quote/signature binding shape (cross-chain fail-closed, offline)
+ *
+ * X.242 — first-hire demo price: 0.00001 $U (10000000000000 wei, $U 18dp).
+ * Buyer (user-designated): 0x299Ce4113abF88F4997737184aa8A7a3D58AC15C.
  */
 
 import { createPublicClient, http, parseAbi, type PublicClient } from "viem";
@@ -41,6 +44,10 @@ const AGENT_ID = "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:334760";
 const OWNER = "0xB0f7681668f916eEd97dA066D31aA295D34727c0";
 const ENDPOINT = "https://inbook-y1-plus.tail3e3640.ts.net:8443";
 const TOKEN_ID = 334760;
+/** X.242 — user-designated Mainnet buyer for the first controlled hire. */
+const BUYER = "0x299Ce4113abF88F4997737184aa8A7a3D58AC15C";
+/** X.242 — first-hire demo price: 0.00001 $U (1e13 wei; $U has 18 decimals). */
+const FIRST_HIRE_PRICE_WEI = 10_000_000_000_000n;
 
 // ---- P4: agent + endpoint preflight (live reads) ----
 console.log("=== X.241 MAINNET PREFLIGHT (READ-ONLY) ===");
@@ -121,7 +128,9 @@ const erc20 = parseAbi([
   "function balanceOf(address) view returns (uint256)",
   "function decimals() view returns (uint8)",
 ]);
-const buyerCandidates = [OWNER]; // marketplace buyers use their own wallets; owner is the only currently known mainnet wallet
+// X.242 — the user-designated buyer; the seller/owner wallet is reported too
+// (buyers and sellers are NOT required to be the same wallet).
+const buyerCandidates = [BUYER, OWNER];
 for (const wallet of buyerCandidates) {
   const uBal = (await client.readContract({
     address: MAINNET_HIRE_CHAIN_CONFIG.paymentToken,
@@ -130,17 +139,30 @@ for (const wallet of buyerCandidates) {
     args: [wallet],
   })) as bigint;
   const bnbBal = await client.getBalance({ address: wallet });
-  const requiredU = 1_000_000_000_000_000_000n; // configured default service price (1 $U) — the seller MAINNET_SERVICE_PRICE default
+  const requiredU = FIRST_HIRE_PRICE_WEI; // X.242 first-hire demo price (0.00001 $U)
   const ready = uBal >= requiredU;
+  const role = wallet === BUYER ? "BUYER" : "SELLER/OWNER";
   console.log(
-    `INFO P5 wallet ${wallet}: mainnet $U=${(Number(uBal) / 1e18).toFixed(6)} (required ${Number(requiredU) / 1e18}) | BNB=${(Number(bnbBal) / 1e18).toFixed(9)}`
+    `INFO P5 ${role} ${wallet}: mainnet $U=${(Number(uBal) / 1e18).toFixed(6)} (required ${Number(requiredU) / 1e18}) | BNB=${(Number(bnbBal) / 1e18).toFixed(9)}`
   );
-  check(`P5 $U verdict ${wallet}`, ready || uBal < requiredU, true); // verdict itself is reported, not failed
-  if (!ready)
-    console.log(
-      `BLOCKED — INSUFFICIENT BUYER $U (${wallet}: ${(Number(uBal) / 1e18).toFixed(6)} $U < 1 $U)`
-    );
+  if (wallet === BUYER) {
+    check(`P5 buyer $U balance verified (read-only)`, uBal >= 0n, uBal.toString());
+    if (!ready) {
+      console.log(
+        `BLOCKED — INSUFFICIENT BUYER $U (buyer ${wallet}: ${(Number(uBal) / 1e18).toFixed(6)} $U < 0.00001 $U)`
+      );
+    } else {
+      console.log(`P5 buyer READY: $U sufficient for the 0.00001 $U first hire.`);
+    }
+    if (bnbBal === 0n) {
+      console.log(`BLOCKED — BUYER HAS NO BNB FOR GAS (buyer ${wallet}: 0 BNB on chain 56)`);
+    }
+  }
 }
+check(
+  "P5 first-hire price is exactly 1e13 wei (0.00001 $U, 18dp)",
+  FIRST_HIRE_PRICE_WEI === 10_000_000_000_000n
+);
 
 // ---- P7: quote/signature binding (offline, cross-chain fail-closed) ----
 const cfg56 = resolveHireChainConfig(HIRE_CHAIN_MAINNET);
@@ -166,6 +188,11 @@ check(
   mainnetEnvelope.chain_id !== cfg97.chainId
 );
 check("P7 flag defaults disabled", isMainnetHireEnabled({}) === false);
+console.log(
+  "INFO MAINNET_HIRE_ENABLED (local env):",
+  isMainnetHireEnabled(process.env) ? "true" : "false"
+);
+// The live seller reports its own flag via /health (checked in P4: hire disabled).
 check(
   "P7 flag only literal 'true' enables",
   isMainnetHireEnabled({ MAINNET_HIRE_ENABLED: "true" }) === true &&

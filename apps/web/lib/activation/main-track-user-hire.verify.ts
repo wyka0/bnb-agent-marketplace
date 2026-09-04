@@ -2240,6 +2240,110 @@ async function main(): Promise<void> {
     );
   }
 
+  // X.242 — first-hire demo price (0.00001 $U = 10000000000000 wei) consistency
+  // and price-validation regression tests. The price flows quote → plan budget
+  // → setBudget/approve/fund with EXACT integer semantics (no rounding loss).
+  {
+    const DEMO_PRICE = "10000000000000"; // 0.00001 $U, 18 decimals
+    // Quote at the demo price must produce a plan bound to exactly 1e13 wei.
+    const demo = prepareMainTrackUserHire(
+      prepareInput({
+        quote: liveQuote({
+          response: {
+            accepted: true,
+            terms: { price: DEMO_PRICE, currency: MAIN_TRACK_PAYMENT_TOKEN },
+            quote_expires_at: nowSeconds() + 600,
+            negotiated_at: nowSeconds() - 5,
+          },
+        }),
+      })
+    );
+    check("X.242 demo price (0.00001 $U) prepares successfully", demo.ok === true);
+    if (demo.ok) {
+      check("X.242 exact integer amount bound (10000000000000 wei)", demo.price === DEMO_PRICE);
+      check(
+        "X.242 no rounding loss (price string is exact, plan budget identical)",
+        demo.price === DEMO_PRICE && BigInt(demo.price) === 10n ** 13n
+      );
+      // The 3 budget-bearing calls must carry the exact amount in calldata.
+      // setBudget = call index 2; approve = index 3; fund = index 4.
+      const budgetHex = BigInt(DEMO_PRICE).toString(16).padStart(64, "0");
+      const setBudgetCarries = demo.calls[2]?.data.includes(budgetHex);
+      const approveCarries = demo.calls[3]?.data.includes(budgetHex);
+      const fundCarries = demo.calls[4]?.data.includes(budgetHex);
+      check("X.242 setBudget calldata carries the exact amount", setBudgetCarries === true);
+      check("X.242 approve calldata carries the exact amount", approveCarries === true);
+      check("X.242 fund calldata carries the exact amount", fundCarries === true);
+    }
+    // Zero price must be rejected (X.242 fail-closed).
+    const zero = prepareMainTrackUserHire(
+      prepareInput({
+        quote: liveQuote({
+          response: {
+            accepted: true,
+            terms: { price: "0", currency: MAIN_TRACK_PAYMENT_TOKEN },
+            quote_expires_at: nowSeconds() + 600,
+            negotiated_at: nowSeconds() - 5,
+          },
+        }),
+      })
+    );
+    check("X.242 zero price rejected", zero.ok === false && /zero/.test(zero.reason ?? ""));
+    // Malformed prices must be rejected (non-numeric / negative).
+    const malformed = prepareMainTrackUserHire(
+      prepareInput({
+        quote: liveQuote({
+          response: {
+            accepted: true,
+            terms: { price: "0.00001", currency: MAIN_TRACK_PAYMENT_TOKEN },
+            quote_expires_at: nowSeconds() + 600,
+            negotiated_at: nowSeconds() - 5,
+          },
+        }),
+      })
+    );
+    check(
+      'X.242 malformed price (decimal string "0.00001") rejected — integer wei only',
+      malformed.ok === false && /numeric|price/i.test(malformed.reason ?? "")
+    );
+    const negative = prepareMainTrackUserHire(
+      prepareInput({
+        quote: liveQuote({
+          response: {
+            accepted: true,
+            terms: { price: "-10000000000000", currency: MAIN_TRACK_PAYMENT_TOKEN },
+            quote_expires_at: nowSeconds() + 600,
+            negotiated_at: nowSeconds() - 5,
+          },
+        }),
+      })
+    );
+    check("X.242 negative price rejected", negative.ok === false);
+    // Chain-56 pricing isolation: a mainnet quote at the demo price must use
+    // the chain-56 config (mainnet commerce/$U), never chain-97 constants.
+    const { resolveHireChainConfig } = await import("@bnb-marketplace/integrations/altana");
+    const cfg56 = resolveHireChainConfig(56);
+    const cfg97 = resolveHireChainConfig(97);
+    check(
+      "X.242 chain 56 cannot use chain 97 pricing config (commerce/$U disjoint)",
+      cfg56.commerce !== cfg97.commerce && cfg56.paymentToken !== cfg97.paymentToken
+    );
+    // Testnet behavior unchanged: the chain-97 1-U quote path still binds 1 U.
+    const tn = prepareMainTrackUserHire(
+      prepareInput({
+        quote: liveQuote({
+          response: {
+            accepted: true,
+            terms: { price: PRICE, currency: MAIN_TRACK_PAYMENT_TOKEN },
+            quote_expires_at: nowSeconds() + 600,
+            negotiated_at: nowSeconds() - 5,
+          },
+        }),
+      })
+    );
+    check("X.242 testnet 1-U quote behavior unchanged", tn.ok === true && tn.price === PRICE);
+  }
+
   if (failures === 0) {
     console.log("X.149 main-track-user-hire verify: ALL CHECKS PASSED");
   } else {

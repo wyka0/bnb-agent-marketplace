@@ -93,7 +93,13 @@ if (wallet.address.toLowerCase() !== OWNER_ADDRESS.toLowerCase()) {
 // ============================================================================
 
 const AGENT_URL = process.env.MAINNET_AGENT_URL ?? "http://127.0.0.1:3001";
-const SERVICE_PRICE = BigInt(process.env.MAINNET_SERVICE_PRICE ?? "1000000000000000000");
+/**
+ * X.242 — Mainnet first-hire demo price: 0.00001 $U (1e13 wei, $U has 18
+ * decimals). The runtime env can override; this default keeps the first
+ * controlled Mainnet hire affordable. MAINNET-ONLY: the Testnet seller has
+ * its own ERC8183_SERVICE_PRICE (default 1 $U) and is untouched.
+ */
+const SERVICE_PRICE = BigInt(process.env.MAINNET_SERVICE_PRICE ?? "10000000000000");
 const mainnetHireEnabled = isMainnetHireEnabled(process.env);
 const MAINNET_AGENT_ID = process.env.MAINNET_AGENT_ID ?? "";
 
