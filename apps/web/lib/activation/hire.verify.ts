@@ -158,6 +158,22 @@ checks.push({
     "CAPABILITY_UNKNOWN",
 });
 
+// X.235-UI-POLISH — truthful future-facing mainnet activation copy.
+checks.push({
+  label: "3c chain-56 record → NOT_ACTIVATABLE with future-facing mainnet copy (no 'never used')",
+  run: () => {
+    const r = classifyAgentActivation({ chainId: 56, isTestnet: false, agentId: "56:0xabc:1" });
+    return (
+      r.state === "NOT_ACTIVATABLE" &&
+      r.reason === "unsupported-chain" &&
+      r.detail.includes("Mainnet activation is coming soon.") &&
+      r.detail.includes("BNB Testnet (chain 97)") &&
+      !r.detail.includes("never used") &&
+      !r.detail.includes("not the supported activation chain")
+    );
+  },
+});
+
 // 4. ACTIONABLE agent resolution -----------------------------------------------------
 checks.push({
   label:

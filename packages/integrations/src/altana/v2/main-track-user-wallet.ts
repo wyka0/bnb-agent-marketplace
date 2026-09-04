@@ -21,6 +21,7 @@
 
 import { createPublicClient, encodeFunctionData, http, parseAbi } from "viem";
 import type { PublicClient } from "viem";
+import { resolveHireChainConfig } from "../hire-chains.js";
 
 /** Authoritative BSC-Testnet (chain 97) ERC-8183 addresses, verified on-chain
  * via the official `@bnbagent/sdk` network table and every successful hire
@@ -181,10 +182,12 @@ export function buildMainTrackUserHireCalls(input: {
   jobId: bigint;
   chainId: number;
 }): { calls: MainTrackUserHireCall[]; commerce: string; router: string; token: string } {
-  if (input.chainId !== 97) throw new Error("wrong chain");
-  const commerce = MAIN_TRACK_COMMERCE.toLowerCase();
-  const router = MAIN_TRACK_ROUTER.toLowerCase();
-  const token = MAIN_TRACK_PAYMENT_TOKEN.toLowerCase();
+  // X.234 — addresses resolve from the authoritative hire-chain seam. Chain 97
+  // yields byte-identical values to the pinned MAIN_TRACK_* table above.
+  const cfg = resolveHireChainConfig(input.chainId);
+  const commerce = cfg.commerce.toLowerCase();
+  const router = cfg.router.toLowerCase();
+  const token = cfg.paymentToken.toLowerCase();
 
   const commerceAbi = parseAbi([
     "function createJob(address provider,address evaluator,uint256 expiredAt,string description,address hook) returns (uint256)",
@@ -202,10 +205,10 @@ export function buildMainTrackUserHireCalls(input: {
         functionName: "createJob",
         args: [
           input.provider as `0x${string}`,
-          MAIN_TRACK_ROUTER,
+          cfg.router,
           input.expiredAt,
           input.description,
-          MAIN_TRACK_ROUTER,
+          cfg.router,
         ],
       }),
     },
@@ -214,7 +217,7 @@ export function buildMainTrackUserHireCalls(input: {
       data: encodeFunctionData({
         abi: routerAbi,
         functionName: "registerJob",
-        args: [input.jobId, MAIN_TRACK_POLICY],
+        args: [input.jobId, cfg.policy],
       }),
     },
     {
@@ -230,7 +233,7 @@ export function buildMainTrackUserHireCalls(input: {
       data: encodeFunctionData({
         abi: tokenAbi,
         functionName: "approve",
-        args: [MAIN_TRACK_COMMERCE, input.budget],
+        args: [cfg.commerce, input.budget],
       }),
     },
     {

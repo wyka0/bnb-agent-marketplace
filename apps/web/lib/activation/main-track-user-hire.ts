@@ -33,6 +33,11 @@ import {
   buildMainTrackUserHireCalls,
   validateMainTrackUserHirePlan,
   createMainTrackUserWallet,
+  resolveHireChainConfig,
+  chainDisplayName,
+  HIRE_CHAIN_MAINNET,
+  HIRE_CHAIN_TESTNET,
+  type HireChainConfig,
 } from "@bnb-marketplace/integrations/altana";
 import type {
   MainTrackUserHireCall,
@@ -53,6 +58,11 @@ export const USER_HIRE_ALLOWLIST = [
   MAIN_TRACK_REGISTRY,
 ] as const;
 
+/**
+ * X.234 — the default hire chain remains BSC Testnet (97). This constant is
+ * kept for any consumer that needs the default; the actual chain always comes
+ * from the quote via `resolveHireChainConfig` inside `prepareMainTrackUserHire`.
+ */
 export const USER_HIRE_CHAIN_ID = 97;
 // NOTE (X.167): the expected budget for final verification is NO LONGER a
 // hardcoded constant. It is the exact verified quoted amount from the execution
@@ -174,10 +184,12 @@ export interface MainTrackLiveQuote {
 /**
  * Prepare the browser-wallet Hire plan (server-side, read-only, no signing)
  * from a LIVE verified seller quote. The provider, price, expiry and terms all
- * come from the quote (never hardcoded). Requires: chain 97, official commerce,
- * official $U token, non-expired quote, a verified signer (already checked
- * server-side against the agent's registered owner), a history-safe job id, and
- * an allowlisted 5-call plan carrying the authoritative policy. Fails closed.
+ * come from the quote (never hardcoded). Requires: a supported hire chain
+ * (97 always; 56 only when Mainnet hiring is explicitly enabled), official
+ * chain commerce, official $U token, non-expired quote, a verified signer
+ * (already checked server-side against the agent's registered owner), a
+ * history-safe job id, and an allowlisted 5-call plan carrying the
+ * authoritative policy. Fails closed.
  */
 export function prepareMainTrackUserHire(input: {
   agentId: string;
@@ -189,19 +201,40 @@ export function prepareMainTrackUserHire(input: {
   nextJobId: bigint;
   historyJobIds: readonly string[];
   nowSeconds: number;
+  /**
+   * X.234 — Mainnet hiring requires explicit enablement. Defaults to false
+   * (fail closed): a chain-56 quote is rejected as unavailable unless the
+   * server passes `true`. Chain 97 behavior is unchanged.
+   */
+  mainnetHireEnabled?: boolean;
 }): MainTrackUserHirePrepareOutcome {
   const q = input.quote;
-  if (q.chain_id !== USER_HIRE_CHAIN_ID) {
-    return { ok: false, reason: "Quote is not for BSC Testnet (chain 97)." };
+  let cfg: HireChainConfig;
+  try {
+    cfg = resolveHireChainConfig(q.chain_id);
+  } catch {
+    return {
+      ok: false,
+      reason: "Quote is not for a supported hire chain (expected chain 56 or 97).",
+    };
   }
-  if (q.verifying_contract?.toLowerCase() !== MAIN_TRACK_COMMERCE.toLowerCase()) {
-    return { ok: false, reason: "Quote is not bound to the official chain-97 commerce contract." };
+  if (cfg.chainId === HIRE_CHAIN_MAINNET && input.mainnetHireEnabled !== true) {
+    return {
+      ok: false,
+      reason:
+        "Mainnet hiring is unavailable (coming soon). Commercial hire is currently BSC Testnet (chain 97) only.",
+    };
+  }
+  if (q.verifying_contract?.toLowerCase() !== cfg.commerce.toLowerCase()) {
+    return cfg.chainId === HIRE_CHAIN_TESTNET
+      ? { ok: false, reason: "Quote is not bound to the official chain-97 commerce contract." }
+      : { ok: false, reason: "Quote is not bound to the official chain-56 commerce contract." };
   }
   const terms = q.response?.terms;
   if (!terms || typeof terms.price !== "string" || typeof terms.currency !== "string") {
     return { ok: false, reason: "Quote is missing price or payment token." };
   }
-  if (terms.currency.toLowerCase() !== MAIN_TRACK_PAYMENT_TOKEN.toLowerCase()) {
+  if (terms.currency.toLowerCase() !== cfg.paymentToken.toLowerCase()) {
     return { ok: false, reason: "Quote payment token is not the official $U token." };
   }
   let price: bigint;
@@ -232,10 +265,12 @@ export function prepareMainTrackUserHire(input: {
     budget: price,
     expiredAt: BigInt(expiry),
     jobId,
-    chainId: USER_HIRE_CHAIN_ID,
+    chainId: cfg.chainId,
   });
 
-  const allowlist = new Set(USER_HIRE_ALLOWLIST.map((a) => a.toLowerCase()));
+  const allowlist = new Set(
+    [cfg.commerce, cfg.router, cfg.policy, cfg.paymentToken].map((a) => a.toLowerCase())
+  );
   for (const call of planBuilt.calls) {
     if (!allowlist.has(call.to.toLowerCase())) {
       return { ok: false, reason: `Plan targets non-allowlisted address ${call.to}` };
@@ -247,16 +282,16 @@ export function prepareMainTrackUserHire(input: {
   // The registerJob step must carry the authoritative policy (not the stale one).
   const registerData = planBuilt.calls[1]?.data ?? "";
   const policyDecoded = `0x${registerData.slice(2 + 8 + 64 + 24, 2 + 8 + 64 + 64)}`;
-  if (policyDecoded.toLowerCase() !== MAIN_TRACK_POLICY.toLowerCase()) {
+  if (policyDecoded.toLowerCase() !== cfg.policy.toLowerCase()) {
     return { ok: false, reason: "registerJob does not target the authoritative policy." };
   }
 
   const expectations: MainTrackUserHireExpectations = {
-    expectedChainId: USER_HIRE_CHAIN_ID,
-    expectedCommerce: MAIN_TRACK_COMMERCE,
-    expectedRouter: MAIN_TRACK_ROUTER,
-    expectedPolicy: MAIN_TRACK_POLICY,
-    expectedPaymentToken: MAIN_TRACK_PAYMENT_TOKEN,
+    expectedChainId: cfg.chainId,
+    expectedCommerce: cfg.commerce,
+    expectedRouter: cfg.router,
+    expectedPolicy: cfg.policy,
+    expectedPaymentToken: cfg.paymentToken,
     expectedPrice: price.toString(),
     expectedProvider: input.verifiedSigner,
   };
@@ -266,11 +301,11 @@ export function prepareMainTrackUserHire(input: {
   return {
     ok: true,
     policy: MAIN_TRACK_MODEL_B,
-    chainId: USER_HIRE_CHAIN_ID,
+    chainId: cfg.chainId,
     agentId: input.agentId,
     seller: input.verifiedSigner,
     price: price.toString(),
-    token: MAIN_TRACK_PAYMENT_TOKEN,
+    token: cfg.paymentToken,
     jobId: jobId.toString(),
     expiredAt: expiry.toString(),
     calls: planBuilt.calls,
@@ -279,10 +314,10 @@ export function prepareMainTrackUserHire(input: {
     review: {
       agent: input.agentId,
       provider: input.verifiedSigner,
-      network: "BNB Smart Chain Testnet",
+      network: cfg.networkLabel,
       price: `${formatUnits(price, 18)} U`,
-      paymentToken: "United Stables ($U)",
-      chain: "BSC Testnet (chain 97)",
+      paymentToken: cfg.paymentTokenLabel,
+      chain: cfg.chainDisplayName,
       whatWillHappen:
         "Your wallet will approve the ERC-8183 commercial escrow transactions. The marketplace never receives your private key.",
       userControlledWallet: true,
@@ -364,8 +399,7 @@ export async function runMainTrackUserHireFromWallet(input: {
               ok: false,
               state: "failed",
               step: null,
-              reason:
-                "Network switch declined — BSC Testnet (chain 97) is required for this commercial hire. No transaction was submitted.",
+              reason: `Network switch declined — ${chainDisplayName(input.expectations.expectedChainId)} is required for this commercial hire. No transaction was submitted.`,
             };
           }
           if (
@@ -377,16 +411,14 @@ export async function runMainTrackUserHireFromWallet(input: {
               ok: false,
               state: "failed",
               step: null,
-              reason:
-                "Your wallet could not switch automatically. Please switch to BSC Testnet (chain 97) manually in your wallet, then confirm the hire again. No transaction was submitted.",
+              reason: `Your wallet could not switch automatically. Please switch to ${chainDisplayName(input.expectations.expectedChainId)} manually in your wallet, then confirm the hire again. No transaction was submitted.`,
             };
           }
           return {
             ok: false,
             state: "failed",
             step: null,
-            reason:
-              "Network switch failed. Please switch your wallet to BSC Testnet (chain 97), then confirm the hire again. No transaction was submitted.",
+            reason: `Network switch failed. Please switch your wallet to ${chainDisplayName(input.expectations.expectedChainId)}, then confirm the hire again. No transaction was submitted.`,
           };
         }
         // Switch accepted — re-run connect (accounts already granted; chain now
@@ -402,7 +434,7 @@ export async function runMainTrackUserHireFromWallet(input: {
             state: "failed",
             step: null,
             reason: /wrong chain/i.test(reconnectMessage)
-              ? "Your wallet is still not on BSC Testnet (chain 97). Switch networks manually, then confirm the hire again. No transaction was submitted."
+              ? `Your wallet is still not on ${chainDisplayName(input.expectations.expectedChainId)}. Switch networks manually, then confirm the hire again. No transaction was submitted.`
               : `wallet connect failed: ${reconnectMessage}`,
           };
         }
@@ -590,6 +622,16 @@ export function mainTrackUserHireErrorMessage(detail: {
   const reason = (detail.reason ?? "").toLowerCase();
   if (/insufficient|balance/i.test(reason)) {
     return "Insufficient testnet funds to complete this Hire.";
+  }
+  // X.234 — network-switch copy is already user-facing (chain-specific); pass
+  // it through verbatim instead of flattening it into the generic message.
+  if (
+    /^network switch declined —/.test(reason) ||
+    /could not switch automatically/.test(reason) ||
+    /^network switch failed\./.test(reason) ||
+    /still not on .*switch networks manually/.test(reason)
+  ) {
+    return detail.reason ?? "Hire stopped safely. No later Hire step was submitted.";
   }
   if (/receipt|timeout|unconfirmed/i.test(reason)) {
     return "Hire stopped while verifying the transaction. No rebroadcast was attempted.";

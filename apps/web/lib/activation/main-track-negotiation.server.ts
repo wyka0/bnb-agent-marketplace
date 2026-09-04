@@ -12,12 +12,14 @@
  */
 
 import { verifyQuoteSignature, buildJobDescription } from "@bnbagent/sdk/erc8183";
-import { parseAbi } from "viem";
+import { createPublicClient, http, parseAbi } from "viem";
 import {
   createMainTrackPublicClient,
-  MAIN_TRACK_COMMERCE,
-  MAIN_TRACK_PAYMENT_TOKEN,
-  MAIN_TRACK_REGISTRY,
+  resolveHireChainConfig,
+  isMainnetHireEnabled,
+  chainIdFromAgentId,
+  HIRE_CHAIN_TESTNET,
+  type HireChainConfig,
 } from "@bnb-marketplace/integrations/altana";
 import { prepareMainTrackUserHire } from "./main-track-user-hire.ts";
 import type {
@@ -27,6 +29,14 @@ import type {
 
 const REGISTRY_ABI = parseAbi(["function tokenURI(uint256) view returns (string)"]);
 const COMMERCE_ABI = parseAbi(["function jobCounter() view returns (uint256)"]);
+
+/**
+ * X.234 — server-side Mainnet hire gate. Reads `process.env` explicitly
+ * (server-only module); defaults to DISABLED. Nothing in the UI can enable it.
+ */
+export function isMainnetHireEnabledServer(env: Record<string, string | undefined> = {}): boolean {
+  return isMainnetHireEnabled(env);
+}
 
 /** Standard marketplace hire task/terms sent to any live seller. */
 export const HIRE_TASK_DESCRIPTION =
@@ -96,17 +106,32 @@ export async function resolveRegisteredEndpoint(
 ): Promise<{ endpoint: string | null; reason?: string }> {
   const m = /^(\d+):(0x[0-9a-fA-F]{40}):(\d+)$/.exec(agentId);
   if (!m) return { endpoint: null, reason: "invalid agent identity" };
-  if (Number(m[1]) !== 97) {
-    return { endpoint: null, reason: "agent is not on BSC Testnet (chain 97)" };
+  // X.234 — the chain comes from the canonical registry identity (never a
+  // display label). Both hire chains resolve here; anything else fails closed.
+  const agentChain = chainIdFromAgentId(agentId);
+  if (agentChain === null) {
+    return { endpoint: null, reason: "agent is not on a supported hire chain (expected 56 or 97)" };
   }
-  if ((m[2] as string).toLowerCase() !== MAIN_TRACK_REGISTRY.toLowerCase()) {
-    return { endpoint: null, reason: "agent is not on the official chain-97 registry" };
+  let cfg: HireChainConfig;
+  try {
+    cfg = resolveHireChainConfig(agentChain);
+  } catch {
+    return { endpoint: null, reason: "agent is not on a supported hire chain (expected 56 or 97)" };
+  }
+  if ((m[2] as string).toLowerCase() !== cfg.registry.toLowerCase()) {
+    return agentChain === HIRE_CHAIN_TESTNET
+      ? { endpoint: null, reason: "agent is not on the official chain-97 registry" }
+      : { endpoint: null, reason: "agent is not on the official chain-56 registry" };
   }
   const tokenId = BigInt(m[3] as string);
   try {
-    const client = createMainTrackPublicClient();
+    // Read-only client for the AGENT's own chain (testnet default preserved).
+    const client =
+      agentChain === HIRE_CHAIN_TESTNET
+        ? createMainTrackPublicClient()
+        : createPublicClient({ transport: http(cfg.rpcUrl) });
     const uri = await client.readContract({
-      address: MAIN_TRACK_REGISTRY,
+      address: cfg.registry as `0x${string}`,
       abi: REGISTRY_ABI,
       functionName: "tokenURI",
       args: [tokenId],
@@ -260,10 +285,28 @@ export async function negotiateSellerDiagnosed(
 
 /** Read the live ERC-8183 job counter (read-only) to predict the next job id. */
 export async function readNextJobId(): Promise<bigint | null> {
+  return readNextJobIdForChain(HIRE_CHAIN_TESTNET);
+}
+
+/**
+ * X.234 — chain-aware job-counter read (read-only). Used for the agent's own
+ * chain once Mainnet hiring is explicitly enabled; today only the testnet
+ * path is reachable because the Mainnet gate below stays closed.
+ */
+export async function readNextJobIdForChain(chainId: number): Promise<bigint | null> {
+  let cfg: HireChainConfig;
   try {
-    const client = createMainTrackPublicClient();
+    cfg = resolveHireChainConfig(chainId);
+  } catch {
+    return null;
+  }
+  try {
+    const client =
+      cfg.chainId === HIRE_CHAIN_TESTNET
+        ? createMainTrackPublicClient()
+        : createPublicClient({ transport: http(cfg.rpcUrl) });
     const counter = await client.readContract({
-      address: MAIN_TRACK_COMMERCE,
+      address: cfg.commerce as `0x${string}`,
       abi: COMMERCE_ABI,
       functionName: "jobCounter",
     });
@@ -299,14 +342,52 @@ export interface LiveAgentHirePorts {
 
 async function defaultVerifyQuote(
   quote: MainTrackLiveQuote,
-  owner: string
+  owner: string,
+  agentId?: string
 ): Promise<{ valid: boolean; signer: string; reason?: string }> {
-  const client = createMainTrackPublicClient();
+  // X.234 — chain-aware provider validation:
+  // 1. the quote must be for a supported hire chain (56/97);
+  // 2. when the agent identity is known, the quote chain must match it;
+  // 3. the agent's registry must match the chain configuration;
+  // 4. the verifying contract must match the chain configuration.
+  // A Testnet signature can never validate a Mainnet quote and vice versa.
+  let cfg: HireChainConfig;
+  try {
+    cfg = resolveHireChainConfig(quote.chain_id);
+  } catch {
+    return {
+      valid: false,
+      signer: "",
+      reason: "quote is not for a supported hire chain (expected chain 56 or 97)",
+    };
+  }
+  if (agentId !== undefined) {
+    const agentChain = chainIdFromAgentId(agentId);
+    if (agentChain === null || agentChain !== quote.chain_id) {
+      return {
+        valid: false,
+        signer: "",
+        reason: "quote chain does not match the selected agent chain",
+      };
+    }
+    const registry = /^(\d+):(0x[0-9a-fA-F]{40}):\d+$/.exec(agentId)?.[2] ?? "";
+    if (registry.toLowerCase() !== cfg.registry.toLowerCase()) {
+      return {
+        valid: false,
+        signer: "",
+        reason: "quote registry does not match the chain configuration",
+      };
+    }
+  }
+  const client =
+    cfg.chainId === HIRE_CHAIN_TESTNET
+      ? createMainTrackPublicClient()
+      : createPublicClient({ transport: http(cfg.rpcUrl) });
   const sig = await verifyQuoteSignature({
     envelope: quote as unknown as Record<string, unknown>,
     provider: owner.toLowerCase() as `0x${string}`,
     publicClient: client,
-    expectedVerifyingContract: MAIN_TRACK_COMMERCE,
+    expectedVerifyingContract: cfg.commerce,
   });
   if (sig.valid) return { valid: true, signer: sig.signer };
   return { valid: false, signer: "", reason: sig.reason ?? "provider signature is not valid" };
@@ -324,14 +405,22 @@ export async function prepareLiveAgentHire(input: {
   historyJobIds?: string[];
   nowSeconds?: number;
   ports?: Partial<LiveAgentHirePorts>;
+  /**
+   * X.234 — Mainnet hiring requires explicit enablement. Defaults to false
+   * (fail closed): chain-56 agents stop with the unavailable message BEFORE
+   * any negotiation. Chain-97 behavior is unchanged.
+   */
+  mainnetHireEnabled?: boolean;
 }): Promise<MainTrackUserHirePrepareOutcome> {
   const nowSeconds = input.nowSeconds ?? Math.floor(Date.now() / 1000);
   const useDefaultNegotiate = input.ports?.negotiate === undefined;
+  // The agent chain comes from the canonical registry identity (never a label).
+  const agentChain = chainIdFromAgentId(input.agentId);
   const ports: LiveAgentHirePorts = {
     resolveEndpoint: resolveRegisteredEndpoint,
     negotiate: (endpoint) => negotiateSeller(endpoint, HIRE_TASK_DESCRIPTION, HIRE_TERMS),
-    verifyQuote: defaultVerifyQuote,
-    nextJobId: readNextJobId,
+    verifyQuote: (quote, owner) => defaultVerifyQuote(quote, owner, input.agentId),
+    nextJobId: () => (agentChain === 56 ? readNextJobIdForChain(56) : readNextJobId()),
     ...input.ports,
   };
   if (!/^0x[0-9a-fA-F]{40}$/.test(input.ownerAddress)) {
@@ -340,6 +429,15 @@ export async function prepareLiveAgentHire(input: {
   const resolved = await ports.resolveEndpoint(input.agentId);
   if (!resolved.endpoint) {
     return { ok: false, reason: resolved.reason ?? "no registered seller endpoint" };
+  }
+  // X.234 — server-side Mainnet gate (no client bypass possible): a chain-56
+  // agent stops here unless Mainnet hiring was explicitly enabled.
+  if (agentChain === 56 && input.mainnetHireEnabled !== true) {
+    return {
+      ok: false,
+      reason:
+        "Mainnet hiring is unavailable (coming soon). Commercial hire is currently BSC Testnet (chain 97) only.",
+    };
   }
   // X.197 — on the LIVE path, surface the exact negotiation failure class
   // (dns / timeout / http / malformed / network) instead of a generic reason,
@@ -386,7 +484,6 @@ export async function prepareLiveAgentHire(input: {
     nextJobId,
     historyJobIds: input.historyJobIds ?? MAIN_TRACK_HISTORY_JOB_IDS,
     nowSeconds,
+    mainnetHireEnabled: input.mainnetHireEnabled,
   });
 }
-
-void MAIN_TRACK_PAYMENT_TOKEN;

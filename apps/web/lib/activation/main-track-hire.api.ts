@@ -2,9 +2,10 @@
  * X.131 — Main Track V2 hire API handler (framework-free, testable).
  *
  * A clearly separated Model B endpoint. It enforces authentication, CSRF,
- * exact agent identity, chain-97, custody availability, and an explicit user
- * confirmation before any transaction. It NEVER fabricates ACTIVE; FUNDED is
- * returned as `state:"funded"` with `active:false`.
+ * exact agent identity, chain-aware resolution (X.241: chain 97 always;
+ * chain 56 only behind MAINNET_HIRE_ENABLED), custody availability, and an
+ * explicit user confirmation before any transaction. It NEVER fabricates
+ * ACTIVE; FUNDED is returned as `state:"funded"` with `active:false`.
  *
  * Production wiring: `apps/web/app/api/activation/main-track-hire/route.ts`.
  */
@@ -15,6 +16,13 @@ import type { AuthenticatedIdentity } from "../auth/types.ts";
 import type { Scan8004Agent } from "../eight004scan/types.ts";
 import { isValidAgentIdentity } from "./hire.server.ts";
 import { MAIN_TRACK_MODEL_B } from "./main-track-v2.ts";
+import {
+  HIRE_CHAIN_MAINNET,
+  HIRE_CHAIN_TESTNET,
+  chainIdFromAgentId,
+  isMainnetHireEnabled,
+  resolveHireChainConfig,
+} from "@bnb-marketplace/integrations/altana";
 import type {
   MainTrackCustodyResult,
   MainTrackHireReviewView,
@@ -153,14 +161,70 @@ export async function mainTrackHireApi(input: {
       headers: NO_STORE,
     };
   }
-  if (agent.chain_id !== 97) {
+  // X.241 — chain-aware resolution (replaces the X.131 chain-97 hard pin).
+  // The agent's OWN identity determines the chain: chain 97 (testnet) and
+  // chain 56 (mainnet, only when MAINNET_HIRE_ENABLED=true). Ambiguity or an
+  // unknown chain FAILS CLOSED. Never a silent 56↔97 fallback.
+  const hireChain = chainIdFromAgentId(agent.agent_id);
+  if (hireChain === null || !Number.isInteger(agent.chain_id) || agent.chain_id !== hireChain) {
     return {
       status: 409,
       body: {
         ok: false,
         error: {
           code: "unsupported-chain",
-          message: "Main Track V2 hire is BSC Testnet (chain 97) only.",
+          message:
+            "Main Track V2 hire requires a resolvable chain-56 or chain-97 ERC-8004 agent identity.",
+        },
+        data: { agent: safeAgent(agent), policy: MAIN_TRACK_MODEL_B },
+      },
+      headers: NO_STORE,
+    };
+  }
+  const chainConfig = resolveHireChainConfig(hireChain); // throws only for non-56/97 — unreachable here
+  if (hireChain === HIRE_CHAIN_MAINNET && !isMainnetHireEnabled(input.env)) {
+    return {
+      status: 409,
+      body: {
+        ok: false,
+        error: {
+          code: "mainnet-hire-disabled",
+          message:
+            "Mainnet hiring is unavailable (coming soon). Commercial hire is currently BSC Testnet (chain 97) only.",
+        },
+        data: { agent: safeAgent(agent), policy: MAIN_TRACK_MODEL_B },
+      },
+      headers: NO_STORE,
+    };
+  }
+  if (hireChain !== HIRE_CHAIN_TESTNET && hireChain !== HIRE_CHAIN_MAINNET) {
+    return {
+      status: 409,
+      body: {
+        ok: false,
+        error: {
+          code: "unsupported-chain",
+          message: `Main Track V2 hire does not support chain ${hireChain}.`,
+        },
+        data: { agent: safeAgent(agent), policy: MAIN_TRACK_MODEL_B },
+      },
+      headers: NO_STORE,
+    };
+  }
+  // chainConfig pins the agent's registry — an agent record from a foreign
+  // registry for the same chain is rejected before preparation.
+  if (
+    chainConfig.registry &&
+    agent.contract_address &&
+    agent.contract_address.toLowerCase() !== chainConfig.registry.toLowerCase()
+  ) {
+    return {
+      status: 409,
+      body: {
+        ok: false,
+        error: {
+          code: "registry-mismatch",
+          message: "Agent registry does not match the authoritative chain configuration.",
         },
         data: { agent: safeAgent(agent), policy: MAIN_TRACK_MODEL_B },
       },

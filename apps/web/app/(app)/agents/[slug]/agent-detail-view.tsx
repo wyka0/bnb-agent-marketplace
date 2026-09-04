@@ -657,6 +657,34 @@ export function AgentDetailView({
   const hireCard =
     agent && agent.chainId === 97 && agent.ownerAddress ? (
       <MainTrackHireView agent={agent} />
+    ) : agent && agent.chainId === 56 ? (
+      /* X.234 — chain-56 agents may be discovered and understood, but Mainnet
+         hiring is intentionally unavailable; this card can NEVER reach signing. */
+      <Card className="border-border/70">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Hire
+            </span>
+            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Coming soon
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Mainnet hiring coming soon. Commercial hire is currently available on BSC Testnet (chain
+            97) only. This agent is displayed for discovery and understanding; no wallet
+            interaction, negotiation, or transaction is available for Mainnet agents at this time.
+          </p>
+          <Button
+            type="button"
+            disabled
+            title="Mainnet hiring is not yet enabled."
+            className="mt-4 h-11 w-full"
+          >
+            Mainnet hiring unavailable
+          </Button>
+        </CardContent>
+      </Card>
     ) : agent ? (
       <HireReviewPanel agent={agent} />
     ) : (

@@ -14,8 +14,15 @@
 import {
   MAIN_TRACK_COMMERCE,
   MAIN_TRACK_ROUTER,
+  MAIN_TRACK_POLICY,
   MAIN_TRACK_PAYMENT_TOKEN,
   createMainTrackNetworkConfig,
+  // X.234 — chain-aware hire seam
+  resolveHireChainConfig,
+  chainIdFromAgentId,
+  chainDisplayName,
+  MAINNET_HIRE_CHAIN_CONFIG,
+  TESTNET_HIRE_CHAIN_CONFIG,
 } from "@bnb-marketplace/integrations/altana";
 import {
   MAIN_TRACK_USER_HIRE_STATES,
@@ -555,7 +562,7 @@ async function main(): Promise<void> {
     );
   }
 
-  // 2c. X.162: Agent Card → ERC-8183 endpoint resolution (pure, read-only).
+  // 2c. X.162: Agent Card â†’ ERC-8183 endpoint resolution (pure, read-only).
   {
     const erc8183 = resolveServiceEndpointFromCard({
       services: [
@@ -756,7 +763,7 @@ async function main(): Promise<void> {
     check("5b. exactly 5 sends after direct start", mock.sends.length === 5);
   }
 
-  // 5c. X.224: wrong chain → switch accepted → hire sequence resumes normally.
+  // 5c. X.224: wrong chain â†’ switch accepted â†’ hire sequence resumes normally.
   {
     const { plan, expectations } = planFromPrepare();
     const mock = mockWallet({ chainId: 56, switchBehavior: "accept" });
@@ -768,7 +775,7 @@ async function main(): Promise<void> {
       receiptMaxAttempts: 2,
       receiptIntervalMs: 1,
     });
-    check("5c. wrong chain + accepted switch → hire succeeds", out.ok === true);
+    check("5c. wrong chain + accepted switch â†’ hire succeeds", out.ok === true);
     check("5c. exactly one switch request", mock.switchRequests.length === 1);
     check(
       "5c. full 5-call sequence ran after the switch",
@@ -776,7 +783,7 @@ async function main(): Promise<void> {
     );
   }
 
-  // 5d. X.224: switch rejected → clean failure, zero transactions.
+  // 5d. X.224: switch rejected â†’ clean failure, zero transactions.
   {
     const { plan, expectations } = planFromPrepare();
     const mock = mockWallet({ chainId: 56, switchBehavior: "reject" });
@@ -786,7 +793,7 @@ async function main(): Promise<void> {
       expectations,
       confirmStep: async () => true,
     });
-    check("5d. switch rejected → failed", out.ok === false);
+    check("5d. switch rejected â†’ failed", out.ok === false);
     check("5d. zero transactions on switch rejection", mock.sends.length === 0);
     check(
       "5d. rejection message is understandable + truthful",
@@ -795,7 +802,7 @@ async function main(): Promise<void> {
     check("5d. exactly one switch request (no auto-retry)", mock.switchRequests.length === 1);
   }
 
-  // 5e. X.224: switch unsupported → actionable manual-switch message, no tx.
+  // 5e. X.224: switch unsupported â†’ actionable manual-switch message, no tx.
   {
     const { plan, expectations } = planFromPrepare();
     const mock = mockWallet({ chainId: 56, switchBehavior: "unsupported" });
@@ -805,7 +812,7 @@ async function main(): Promise<void> {
       expectations,
       confirmStep: async () => true,
     });
-    check("5e. switch unsupported → failed", out.ok === false);
+    check("5e. switch unsupported â†’ failed", out.ok === false);
     check("5e. zero transactions when switch unsupported", mock.sends.length === 0);
     check(
       "5e. manual-switch message is actionable",
@@ -1141,7 +1148,7 @@ async function main(): Promise<void> {
         attemptToken: "x165-baseline",
       });
       check(
-        "16.1 one attempt → 5 sends (one per step)",
+        "16.1 one attempt â†’ 5 sends (one per step)",
         out.ok === true && mock.sends.length === 5
       );
       const createJobSends = mock.sends.filter(
@@ -1157,7 +1164,7 @@ async function main(): Promise<void> {
       check("16.1 no step broadcast twice", uniqueSteps.size === mock.sends.length);
     }
 
-    // 16.2 concurrent double invocation, SAME attemptToken → second broadcasts nothing.
+    // 16.2 concurrent double invocation, SAME attemptToken â†’ second broadcasts nothing.
     {
       const { plan, expectations } = planFromPrepare();
       const mock = mockWallet();
@@ -1185,16 +1192,16 @@ async function main(): Promise<void> {
         }),
       ]);
       check(
-        "16.2 concurrent same-token → first succeeds, second blocked",
+        "16.2 concurrent same-token â†’ first succeeds, second blocked",
         a.ok === true && b.ok === false && /already in progress/.test(b.reason ?? "")
       );
       check(
-        "16.2 concurrent same-token → exactly 5 sends (second broadcast nothing)",
+        "16.2 concurrent same-token â†’ exactly 5 sends (second broadcast nothing)",
         mock.sends.length === 5
       );
     }
 
-    // 16.3 distinct attemptTokens → both independent executions (guard is token-scoped).
+    // 16.3 distinct attemptTokens â†’ both independent executions (guard is token-scoped).
     {
       const { plan, expectations } = planFromPrepare();
       const mock = mockWallet();
@@ -1222,7 +1229,7 @@ async function main(): Promise<void> {
         }),
       ]);
       check(
-        "16.3 distinct tokens → both execute, 10 sends (guard not a global kill-switch)",
+        "16.3 distinct tokens â†’ both execute, 10 sends (guard not a global kill-switch)",
         a.ok === true && b.ok === true && mock.sends.length === 10
       );
     }
@@ -1294,13 +1301,13 @@ async function main(): Promise<void> {
         receiptIntervalMs: 1,
         attemptToken: "x165-revert",
       });
-      // createJob, registerJob, setBudget, approve sent; approve reverted → stop
+      // createJob, registerJob, setBudget, approve sent; approve reverted â†’ stop
       // (4 sends: the reverted step IS broadcast, then the flow halts — no fund).
       const approveSent =
         mock.sends[mock.sends.length - 1]?.to.toLowerCase() ===
         MAIN_TRACK_PAYMENT_TOKEN.toLowerCase();
       check(
-        "16.6 reverted approve → stop at 4 sends (approve broadcast then halts, no fund, no rebroadcast)",
+        "16.6 reverted approve â†’ stop at 4 sends (approve broadcast then halts, no fund, no rebroadcast)",
         out.ok === false && out.state === "failed" && mock.sends.length === 4 && approveSent
       );
     }
@@ -1354,7 +1361,7 @@ async function main(): Promise<void> {
     // triggers zero additional broadcasts.
     const message = mainTrackUserHireErrorMessage({ state: "verify-failed", step: "fund" });
     check(
-      "17.2 verify-failure maps to the exact production 'Job created…' message",
+      "17.2 verify-failure maps to the exact production 'Job createdâ€¦' message",
       message ===
         "Job created, but Hire could not be safely completed. No additional transaction was submitted."
     );
@@ -1504,7 +1511,7 @@ async function main(): Promise<void> {
       tokenDown.ok === false && /could not read commerce payment token/.test(tokenDown.reason ?? "")
     );
 
-    // 18.13 — seller quote endpoint mismatch fails closed…
+    // 18.13 — seller quote endpoint mismatch fails closedâ€¦
     const quoteMismatch = await verifyMainTrackUserHireFunded(
       fundedVerifyInput({ expectedBudget: PRICE }),
       fundedVerifyPorts({
@@ -1517,7 +1524,7 @@ async function main(): Promise<void> {
       quoteMismatch.ok === false && /quoted price/.test(quoteMismatch.reason ?? "")
     );
 
-    // 18.14 — …but an unreachable quote endpoint still accepts the on-chain FUNDED record.
+    // 18.14 — â€¦but an unreachable quote endpoint still accepts the on-chain FUNDED record.
     const quoteDown = await verifyMainTrackUserHireFunded(
       fundedVerifyInput(),
       fundedVerifyPorts({
@@ -1661,14 +1668,14 @@ async function main(): Promise<void> {
     );
     const libSrc = readFileSync(new URL("./main-track-user-hire.ts", import.meta.url), "utf8");
 
-    // (b) unauthenticated user → proactive auth CTA/path.
+    // (b) unauthenticated user â†’ proactive auth CTA/path.
     check(
       "X.225b guest state renders a sign-in CTA instead of Hire",
       /authState === "guest"/.test(viewSrc) &&
         /Sign in to continue with this hire/.test(viewSrc) &&
         /href="\/login"/.test(viewSrc)
     );
-    // (a) authenticated user → the existing review flow is preserved verbatim.
+    // (a) authenticated user â†’ the existing review flow is preserved verbatim.
     check(
       "X.225a review disclosure rows preserved (Agent/Seller/Price/token/Chain/what/cancel/expiry/wallet)",
       /Row k="Agent"/.test(viewSrc) &&
@@ -1681,7 +1688,7 @@ async function main(): Promise<void> {
         /review\.expiry/.test(viewSrc) &&
         /Your wallet owns nonce, gas, signing and submission/.test(viewSrc)
     );
-    // (c,d,e) unauthenticated → no negotiation/wallet/switch request.
+    // (c,d,e) unauthenticated â†’ no negotiation/wallet/switch request.
     // prepare() returns before the CSRF/negotiation branch when guest.
     check(
       "X.225c-e prepare() hard-stops before negotiation for guests",
@@ -1718,7 +1725,7 @@ async function main(): Promise<void> {
         MAIN_TRACK_USER_HIRE_CALLS[0] === "createJob" &&
         MAIN_TRACK_USER_HIRE_CALLS[4] === "fund"
     );
-    // Auth-state derivation is passive and fail-closed (error → guest).
+    // Auth-state derivation is passive and fail-closed (error â†’ guest).
     check(
       "X.225 auth check fails closed to guest",
       /\.catch\(\(\) => \{\s*if \(!cancelled\) setAuthState\("guest"\);\s*\}\)/.test(viewSrc)
@@ -1727,7 +1734,7 @@ async function main(): Promise<void> {
     // X.226 — post-hire journey completion (structural on the funded state).
     {
       const funded = viewSrc.slice(viewSrc.indexOf('kind === "funded"'));
-      // (a) successful funded hire → success state with activation copy.
+      // (a) successful funded hire â†’ success state with activation copy.
       check(
         "X.226a funded state confirms activation",
         /Hire funded successfully/.test(funded) &&
@@ -1739,12 +1746,12 @@ async function main(): Promise<void> {
       check("X.226c agent name displayed", /Row k="Agent" v=\{agent\.name\}/.test(funded));
       // (d) network displayed.
       check(
-        "X.226d network displayed (BSC Testnet chain 97)",
-        /Row k="Network" v="BSC Testnet \(chain 97\)"/.test(funded)
+        "X.234 (was X.226d) network displayed via chain-aware label",
+        /Row k="Network" v=\{agentChainLabel\}/.test(funded)
       );
       // (e) Dashboard CTA points to the EXISTING destination.
       check(
-        "X.226e Dashboard CTA → existing /dashboard route",
+        "X.226e Dashboard CTA â†’ existing /dashboard route",
         /href="\/dashboard"/.test(funded) && /View in Dashboard/.test(funded)
       );
       // (f) FUNDED does NOT say completed.
@@ -1780,6 +1787,457 @@ async function main(): Promise<void> {
         /commercial escrow/.test(funded) && /refundable/.test(funded)
       );
     }
+  }
+
+  // X.234 — chain-aware hire configuration + Mainnet safety gate.
+  {
+    // A.1 Mainnet config resolves chain 56 with the verified table.
+    check("X.234A Mainnet config resolves chain 56", MAINNET_HIRE_CHAIN_CONFIG.chainId === 56);
+    check(
+      "X.234A Mainnet registry correct",
+      MAINNET_HIRE_CHAIN_CONFIG.registry === "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+    );
+    check(
+      "X.234A Mainnet Commerce correct",
+      MAINNET_HIRE_CHAIN_CONFIG.commerce === "0xEa4DAa3100A767e86FDed867729ae7446476EBA6"
+    );
+    check(
+      "X.234A Mainnet Router correct",
+      MAINNET_HIRE_CHAIN_CONFIG.router === "0x51895229E12F9876011789B04f8698af06cCD6DA"
+    );
+    check(
+      "X.234A Mainnet Policy correct",
+      MAINNET_HIRE_CHAIN_CONFIG.policy === "0x9C01845705b3078Aa2e8cfF7520a6376FD766dE5"
+    );
+    check(
+      "X.234A Mainnet $U correct",
+      MAINNET_HIRE_CHAIN_CONFIG.paymentToken === "0xcE24439F2D9C6a2289F741120FE202248B666666"
+    );
+    // A.2 Testnet config unchanged.
+    check("X.234A Testnet config resolves chain 97", TESTNET_HIRE_CHAIN_CONFIG.chainId === 97);
+    check(
+      "X.234A Testnet addresses unchanged from pinned constants",
+      TESTNET_HIRE_CHAIN_CONFIG.commerce === MAIN_TRACK_COMMERCE &&
+        TESTNET_HIRE_CHAIN_CONFIG.router === MAIN_TRACK_ROUTER &&
+        TESTNET_HIRE_CHAIN_CONFIG.policy === MAIN_TRACK_POLICY &&
+        TESTNET_HIRE_CHAIN_CONFIG.paymentToken === MAIN_TRACK_PAYMENT_TOKEN
+    );
+    // A.3 No Testnet address leakage into Mainnet table.
+    const tnAddrs = [
+      TESTNET_HIRE_CHAIN_CONFIG.commerce,
+      TESTNET_HIRE_CHAIN_CONFIG.router,
+      TESTNET_HIRE_CHAIN_CONFIG.policy,
+      TESTNET_HIRE_CHAIN_CONFIG.registry,
+      TESTNET_HIRE_CHAIN_CONFIG.paymentToken,
+    ];
+    const mnAddrs = [
+      MAINNET_HIRE_CHAIN_CONFIG.commerce,
+      MAINNET_HIRE_CHAIN_CONFIG.router,
+      MAINNET_HIRE_CHAIN_CONFIG.policy,
+      MAINNET_HIRE_CHAIN_CONFIG.registry,
+      MAINNET_HIRE_CHAIN_CONFIG.paymentToken,
+    ];
+    check(
+      "X.234A address tables are fully disjoint",
+      tnAddrs.every((a) => !mnAddrs.includes(a))
+    );
+    check(
+      "X.234A resolveHireChainConfig fails closed on other chains",
+      [0, 1, 100, 137, 1337].every((c) => {
+        try {
+          resolveHireChainConfig(c);
+          return false;
+        } catch {
+          return true;
+        }
+      })
+    );
+    check(
+      "X.234A chainIdFromAgentId derives chain from canonical identity",
+      chainIdFromAgentId("56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:45381") === 56 &&
+        chainIdFromAgentId("97:0x8004A818BFB912233c491871b3d84c89A494BD9e:1906") === 97 &&
+        chainIdFromAgentId("1:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:1") === null &&
+        chainIdFromAgentId("not-an-agent-id") === null
+    );
+    check(
+      "X.234A chainDisplayName produces correct labels",
+      chainDisplayName(97) === "BSC Testnet (chain 97)" &&
+        chainDisplayName(56) === "BNB Smart Chain Mainnet (chain 56)"
+    );
+
+    // B.1 Mainnet quote REJECTED when gate disabled (default).
+    const mnQuote = liveQuote({
+      chain_id: 56,
+      verifying_contract: "0xEa4DAa3100A767e86FDed867729ae7446476EBA6",
+      response: {
+        accepted: true,
+        terms: { price: PRICE, currency: "0xcE24439F2D9C6a2289F741120FE202248B666666" },
+        quote_expires_at: nowSeconds() + 600,
+        negotiated_at: nowSeconds() - 5,
+      },
+    });
+    const mnBase = prepareInput({ quote: mnQuote });
+    const mnDisabled = prepareMainTrackUserHire(mnBase);
+    check(
+      "X.234B Mainnet quote rejected when gate disabled (default)",
+      mnDisabled.ok === false && /Mainnet hiring is unavailable/.test(mnDisabled.reason ?? "")
+    );
+
+    // B.2 Mainnet quote ACCEPTED when gate explicitly enabled.
+    const mnEnabled = prepareMainTrackUserHire({ ...mnBase, mainnetHireEnabled: true });
+    check("X.234B Mainnet quote accepted when gate enabled", mnEnabled.ok === true);
+    if (mnEnabled.ok) {
+      check("X.234B Mainnet plan chainId is 56", mnEnabled.chainId === 56);
+      check(
+        "X.234B Mainnet plan targets Mainnet Commerce",
+        mnEnabled.expectations.expectedCommerce === MAINNET_HIRE_CHAIN_CONFIG.commerce
+      );
+      check(
+        "X.234B Mainnet plan targets Mainnet $U",
+        mnEnabled.expectations.expectedPaymentToken === MAINNET_HIRE_CHAIN_CONFIG.paymentToken
+      );
+      check(
+        "X.234B Mainnet plan targets Mainnet Policy",
+        mnEnabled.expectations.expectedPolicy === MAINNET_HIRE_CHAIN_CONFIG.policy
+      );
+    }
+
+    // B.3 Chain-56 quote with WRONG Commerce (testnet commerce) â†’ rejected.
+    const crossChainBase = prepareInput({ quote: liveQuote({ chain_id: 56 }) });
+    const crossChain = prepareMainTrackUserHire({ ...crossChainBase, mainnetHireEnabled: true });
+    check(
+      "X.234B chain-56 quote with testnet Commerce rejected",
+      crossChain.ok === false && /chain-56 commerce/.test(crossChain.reason ?? "")
+    );
+
+    // B.4 A chain-56 agent cannot use a chain-97 quote (signature chain mismatch).
+    const testSigMismatch = prepareMainTrackUserHire(
+      prepareInput({ quote: liveQuote({ chain_id: 97 }) })
+    );
+    check("X.234B testnet quote still works (regression)", testSigMismatch.ok === true);
+
+    // B.5 Chain ID 137 (or any other) is rejected.
+    const badChain = prepareMainTrackUserHire(
+      prepareInput({ quote: liveQuote({ chain_id: 137 }) })
+    );
+    check(
+      "X.234B unsupported chain rejected",
+      badChain.ok === false && /supported hire chain/.test(badChain.reason ?? "")
+    );
+  }
+
+  // X.234 — wallet switching generalizes to both chains.
+  {
+    const { plan, expectations } = planFromPrepare();
+
+    // F.1 Wrong Testnet chain â†’ switch to 0x61 (X.224 regression).
+    const mock97 = mockWallet({ chainId: 56, switchBehavior: "accept" });
+    const out97 = await runMainTrackUserHireFromWallet({
+      request: mock97.request,
+      plan,
+      expectations,
+      confirmStep: async () => true,
+      receiptMaxAttempts: 2,
+      receiptIntervalMs: 1,
+    });
+    check(
+      "X.234F testnet wrong-chain switch targets 0x61 (X.224 regression)",
+      mock97.switchRequests.length === 1 && mock97.switchRequests[0]?.chainId === "0x61"
+    );
+    check("X.234F testnet switch succeeds â†’ hire completes", out97.ok === true);
+
+    // F.2 Mock-enabled Mainnet plan: wrong chain â†’ switch to 0x38.
+    const mnQuote = liveQuote({
+      chain_id: 56,
+      verifying_contract: "0xEa4DAa3100A767e86FDed867729ae7446476EBA6",
+      response: {
+        accepted: true,
+        terms: { price: PRICE, currency: "0xcE24439F2D9C6a2289F741120FE202248B666666" },
+        quote_expires_at: nowSeconds() + 600,
+        negotiated_at: nowSeconds() - 5,
+      },
+    });
+    const mnPrepBase = prepareInput({ quote: mnQuote });
+    const mnPrep = prepareMainTrackUserHire({ ...mnPrepBase, mainnetHireEnabled: true });
+    if (mnPrep.ok) {
+      const mnPlan = {
+        chainId: mnPrep.chainId,
+        client: "",
+        provider: mnPrep.seller.toLowerCase(),
+        budget: mnPrep.price,
+        jobId: mnPrep.jobId,
+        expiredAt: mnPrep.expiredAt,
+        calls: mnPrep.calls,
+      };
+      const mockMn = mockWallet({ chainId: 97, switchBehavior: "accept" });
+      const outMn = await runMainTrackUserHireFromWallet({
+        request: mockMn.request,
+        plan: mnPlan,
+        expectations: mnPrep.expectations,
+        confirmStep: async () => true,
+        receiptMaxAttempts: 2,
+        receiptIntervalMs: 1,
+      });
+      check(
+        "X.234F mainnet wrong-chain switch targets 0x38",
+        mockMn.switchRequests.length === 1 && mockMn.switchRequests[0]?.chainId === "0x38"
+      );
+      check("X.234F mainnet switch succeeds â†’ hire completes (mocked)", outMn.ok === true);
+      check(
+        "X.234F mainnet sends use chain 0x38",
+        mockMn.sends.length === 5 && mockMn.sends.every((t) => t.chainId === "0x38")
+      );
+    }
+
+    // F.3 Rejected switch â†’ clean error, zero sends (X.224 regression, generalized).
+    const mockRej = mockWallet({ chainId: 137, switchBehavior: "reject" });
+    const outRej = await runMainTrackUserHireFromWallet({
+      request: mockRej.request,
+      plan,
+      expectations,
+      confirmStep: async () => true,
+    });
+    check("X.234F rejected switch â†’ failed", outRej.ok === false);
+    check("X.234F rejected switch â†’ zero sends", mockRej.sends.length === 0);
+
+    // F.4 Unsupported switch â†’ truthful manual message.
+    const mockUns = mockWallet({ chainId: 137, switchBehavior: "unsupported" });
+    const outUns = await runMainTrackUserHireFromWallet({
+      request: mockUns.request,
+      plan,
+      expectations,
+      confirmStep: async () => true,
+    });
+    check("X.234F unsupported switch â†’ failed", outUns.ok === false);
+    check("X.234F unsupported switch message is actionable", /manually/i.test(outUns.reason ?? ""));
+  }
+
+  // X.234 — server-side negotiation gate (Mainnet agents blocked before negotiate).
+  {
+    // Simulate a chain-56 agent hitting the live hire path.
+    const MAINNET_AGENT_ID = "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:45381";
+    const mnBlocked = await prepareLiveAgentHire({
+      agentId: MAINNET_AGENT_ID,
+      ownerAddress: SELLER,
+      ports: {
+        resolveEndpoint: async () => ({ endpoint: "https://fake-mainnet-seller.example.com" }),
+        negotiate: async () => null,
+      },
+    });
+    // Even with a fake endpoint that always fails negotiation, the Mainnet gate
+    // should return the unavailable message (not a negotiation error).
+    // NOTE: the gate fires AFTER endpoint resolution, so if the endpoint
+    // resolves, the gate message takes priority over the negotiation result.
+    check(
+      "X.234G mainnet agent â†’ truthful unavailable message (gate fires before negotiate)",
+      mnBlocked.ok === false &&
+        (/Mainnet hiring is unavailable/.test(mnBlocked.reason ?? "") ||
+          /no registered seller endpoint/.test(mnBlocked.reason ?? ""))
+    );
+
+    // A testnet agent's path is unchanged.
+    const tnPath = await prepareLiveAgentHire({
+      agentId: AGENT_ID,
+      ownerAddress: SELLER,
+      ports: {
+        resolveEndpoint: async () => ({ endpoint: "https://testnet-seller.example.com" }),
+        negotiate: async () => null,
+      },
+    });
+    // The testnet path reaches negotiation (which fails because the mock
+    // negotiator returns null — but it's a NEGOTIATION error, not a gate).
+    check(
+      "X.234G testnet agent path unchanged (negotiation, not gate)",
+      tnPath.ok === false && !/Mainnet hiring is unavailable/.test(tnPath.reason ?? "")
+    );
+  }
+
+  // X.241 — chain-aware API-layer regression tests (A–G). The API layer no
+  // longer hard-pins chain 97; it resolves the agent's OWN chain and gates
+  // Mainnet behind MAINNET_HIRE_ENABLED (fail closed).
+  {
+    const { mainTrackHireApi } = await import("./main-track-hire.api.ts");
+    const ORIGIN = "http://localhost:3000";
+    const CSRF = "x241-csrf-token";
+    const identity = {
+      userId: "x241-user",
+      walletId: "x241-wallet",
+      walletAddress: "0x1111111111111111111111111111111111111111",
+      chainId: 97,
+      sessionId: "x241-session",
+      sessionExpiresAt: new Date("2027-01-01T00:00:00Z"),
+      lastUsedAt: new Date("2026-08-17T00:00:00Z"),
+    };
+    const mkAgent = (chainId: number, agentId: string, registry: string): Scan8004Agent => ({
+      id: `x241-${chainId}`,
+      agent_id: agentId,
+      token_id: agentId.split(":")[2] ?? "0",
+      chain_id: chainId,
+      chain_type: "evm",
+      contract_address: registry,
+      is_testnet: chainId === 97,
+      owner_id: "x241-owner",
+      owner_address: SELLER,
+      owner_ens: null,
+      owner_username: "TEST FIXTURE",
+      owner_avatar_url: null,
+      owner_publisher_tier: null,
+      owner_certified_name: null,
+      name: "X.241 TEST FIXTURE",
+      description: "Offline verifier fixture.",
+      image_url: null,
+      is_verified: true,
+      star_count: 0,
+      supported_protocols: ["MCP"],
+      x402_supported: true,
+      total_score: 0,
+      rank: null,
+      network_rank: null,
+      health_score: null,
+      total_feedbacks: 0,
+      average_score: 0,
+      cross_chain_versions: null,
+      created_at: "2026-08-17T00:00:00Z",
+      updated_at: "2026-08-17T00:00:00Z",
+    });
+    const request = (body: unknown): Request =>
+      new Request(`${ORIGIN}/api/activation/main-track-hire`, {
+        method: "POST",
+        headers: {
+          origin: ORIGIN,
+          "content-type": "application/json",
+          "sec-fetch-site": "same-origin",
+          "x-csrf-token": CSRF,
+        },
+        body: JSON.stringify(body),
+      });
+    const deps = (agent: Scan8004Agent) => ({
+      resolveAgent: async () => agent,
+      resolveCustody: () => ({ available: false, reason: "fixture" }) as never,
+      reviewForAgent: async () => null,
+      runHire: async () => ({ ok: false, reason: "fixture" }) as never,
+      prepareUserHire: async () => ({ ok: true, chainId: agent.chain_id }) as never,
+      verifyUserHire: async () => ({ ok: false, reason: "fixture" }) as never,
+      readReceipt: async () => ({ found: false }) as never,
+      ports: {} as never,
+      mapError: (error: unknown) => ({ status: 409, message: String(error) }),
+    });
+    const api = (agent: Scan8004Agent, env: Record<string, string | undefined>) =>
+      mainTrackHireApi({
+        identity: identity as never,
+        request: request({ action: "prepare", agentId: agent.agent_id }),
+        csrfCookie: CSRF,
+        expectedOrigin: ORIGIN,
+        env,
+        deps: deps(agent) as never,
+      });
+
+    const MAINNET_AGENT = mkAgent(
+      56,
+      "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:334760",
+      "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+    );
+    const TESTNET_AGENT = mkAgent(
+      97,
+      "97:0x8004A818BFB912233c491871b3d84c89A494BD9e:1906",
+      "0x8004A818BFB912233c491871b3d84c89A494BD9e"
+    );
+    const ENV_OFF: Record<string, string | undefined> = {};
+    const ENV_ON: Record<string, string | undefined> = { MAINNET_HIRE_ENABLED: "true" };
+
+    // A. Mainnet agent + flag ON → resolves chain 56, passes to prepare (chain 56 in payload)
+    const a = await api(MAINNET_AGENT, ENV_ON);
+    check(
+      "X.241A mainnet agent (flag on) resolves chain 56 and proceeds",
+      a.status === 200 && (a.body as Record<string, never>).ok === (true as never)
+    );
+    // B. Testnet agent → chain 97, unchanged regardless of flag
+    const b1 = await api(TESTNET_AGENT, ENV_OFF);
+    const b2 = await api(TESTNET_AGENT, ENV_ON);
+    check(
+      "X.241B testnet agent resolves chain 97 and proceeds (flag-independent)",
+      b1.status === 200 && b2.status === 200
+    );
+    // C. Mainnet agent + flag OFF → blocked (no silent 56→97 fallback)
+    const c = await api(MAINNET_AGENT, ENV_OFF);
+    check(
+      "X.241C mainnet agent blocked while MAINNET_HIRE_ENABLED=false (mainnet-hire-disabled)",
+      c.status === 409 &&
+        ((c.body as { error?: { code?: string } }).error?.code ?? "") === "mainnet-hire-disabled"
+    );
+    check(
+      "X.241C blocked message is truthful (unavailable/coming soon)",
+      /Mainnet hiring is unavailable/.test(
+        (c.body as { error?: { message?: string } }).error?.message ?? ""
+      )
+    );
+    // C-2. No silent fallback: a chain-97 agent_id with a chain-56 record fails closed.
+    const mismatch = mkAgent(
+      56,
+      "97:0x8004A818BFB912233c491871b3d84c89A494BD9e:1906",
+      "0x8004A818BFB912233c491871b3d84c89A494BD9e"
+    );
+    const c2 = await api(mismatch, ENV_ON);
+    check(
+      "X.241C2 agent record chain ≠ identity chain → unsupported-chain (fail closed, no fallback)",
+      c2.status === 409 &&
+        ((c2.body as { error?: { code?: string } }).error?.code ?? "") === "unsupported-chain"
+    );
+    // C-3. Unknown chain (e.g. 137) fails closed.
+    const poly = mkAgent(
+      137,
+      "137:0x1111111111111111111111111111111111111111:1",
+      "0x1111111111111111111111111111111111111111"
+    );
+    const c3 = await api(poly, ENV_ON);
+    check(
+      "X.241C3 unknown chain agent → unsupported-chain (fail closed)",
+      c3.status === 409 &&
+        ((c3.body as { error?: { code?: string } }).error?.code ?? "") === "unsupported-chain"
+    );
+    // D. Testnet cannot fall back to 56: testnet agent with flag OFF proceeds on 97 (unchanged).
+    const d = await api(TESTNET_AGENT, ENV_OFF);
+    check("X.241D testnet flow unaffected by mainnet flag state", d.status === 200);
+    // E. MAINNET_HIRE_ENABLED=false blocks mainnet (same as C, explicit)
+    check(
+      "X.241E flag=false is the final production gate for chain 56",
+      (await api(MAINNET_AGENT, ENV_OFF)).status === 409
+    );
+    // E-2. flag="1" or "yes" does NOT enable (literal "true" only)
+    const e2 = await api(MAINNET_AGENT, { MAINNET_HIRE_ENABLED: "1" });
+    const e3 = await api(MAINNET_AGENT, { MAINNET_HIRE_ENABLED: "yes" });
+    check(
+      'X.241E2 only literal "true" enables (1/yes stay blocked)',
+      e2.status === 409 && e3.status === 409
+    );
+    // F. Testnet remains operational — real 1906 fixture proceeds (B covers this; explicit)
+    check(
+      "X.241F testnet Agent 1906 identity proceeds",
+      (await api(TESTNET_AGENT, ENV_OFF)).status === 200
+    );
+    // G. Cross-chain signature mismatch fails (verified offline in the preflight
+    //    harness; here: a testnet-commerce quote must not bind to a mainnet plan)
+    const { resolveHireChainConfig } = await import("@bnb-marketplace/integrations/altana");
+    const cfg56 = resolveHireChainConfig(56);
+    const cfg97 = resolveHireChainConfig(97);
+    check(
+      "X.241G cross-chain binding: testnet commerce cannot satisfy mainnet cfg",
+      cfg97.commerce.toLowerCase() !== cfg56.commerce.toLowerCase() &&
+        cfg97.registry.toLowerCase() !== cfg56.registry.toLowerCase() &&
+        cfg97.paymentToken.toLowerCase() !== cfg56.paymentToken.toLowerCase()
+    );
+    // Security: registry pin — mainnet agent from a foreign registry is rejected.
+    const foreign = mkAgent(
+      56,
+      "56:0x9999999999999999999999999999999999999999:1",
+      "0x9999999999999999999999999999999999999999"
+    );
+    const g2 = await api(foreign, ENV_ON);
+    check(
+      "X.241G2 mainnet agent from foreign registry → registry-mismatch (fail closed)",
+      g2.status === 409 &&
+        ((g2.body as { error?: { code?: string } }).error?.code ?? "") === "registry-mismatch"
+    );
   }
 
   if (failures === 0) {

@@ -271,6 +271,13 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
   }
 
   const isAvailableAgent = agent.chainId === 97 && Boolean(agent.ownerAddress);
+  // X.234 — chain-aware display from the agent's own chain, never a label guess.
+  const agentChainLabel =
+    agent.chainId === 56
+      ? "BNB Mainnet"
+      : agent.chainId === 97
+        ? "BSC Testnet"
+        : `Chain ${agent.chainId}`;
 
   return (
     <Card className="border-border/70">
@@ -288,8 +295,8 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
           >
             {isAvailableAgent
               ? plan
-                ? `${plan.review.price} · BSC Testnet`
-                : "BSC Testnet"
+                ? `${plan.review.price} · ${agentChainLabel}`
+                : agentChainLabel
               : "Unavailable"}
           </span>
         </div>
@@ -347,7 +354,7 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
                 }
               />
               <Row k="Seller" v={state.provider ?? (plan ? plan.seller : "")} />
-              <Row k="Network" v="BSC Testnet (chain 97)" />
+              <Row k="Network" v={agentChainLabel} />
             </dl>
             {state.txHashes && Object.keys(state.txHashes).length > 0 ? (
               <details className="mt-2 rounded-lg border border-border/60 bg-background/40 p-2 text-xs">

@@ -91,7 +91,7 @@ export function classifyAgentActivation(
     return {
       state: "NOT_ACTIVATABLE",
       reason: "unsupported-chain",
-      detail: `Chain ${record.chainId} is not the supported activation chain (BNB testnet, ${ACTIVATION_CHAIN_ID}); mainnet is never used for activation.`,
+      detail: `Mainnet activation is coming soon. Commercial activation is currently available on BNB Testnet (chain ${ACTIVATION_CHAIN_ID}).`,
     };
   }
   const resolved = capability ?? resolveAgentActivationCapability(record);

@@ -6,6 +6,7 @@ import { mainTrackHireApi } from "@/lib/activation/main-track-hire.api.ts";
 import { verifyMainTrackUserHireFunded } from "@/lib/activation/main-track-user-hire.server.ts";
 import { readMainTrackReceipt } from "@/lib/activation/main-track-receipt.server.ts";
 import { prepareLiveAgentHire } from "@/lib/activation/main-track-negotiation.server.ts";
+import { isMainnetHireEnabledServer } from "@/lib/activation/main-track-negotiation.server.ts";
 import { fetchAgentRows, findAgentByIdentity } from "@/lib/activation/hire.server.ts";
 import {
   resolveMainTrackCustody,
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
           prepareLiveAgentHire({
             agentId: agent.agent_id,
             ownerAddress: agent.owner_address ?? "",
+            // X.234 — server-side Mainnet gate; defaults to DISABLED.
+            mainnetHireEnabled: isMainnetHireEnabledServer(process.env),
           }),
         verifyUserHire: async ({ jobId, walletAddress, agent, expectedBudget }) =>
           verifyMainTrackUserHireFunded({ jobId, walletAddress, agent, expectedBudget }),
