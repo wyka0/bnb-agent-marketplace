@@ -99,7 +99,9 @@ check("P4 seller /health is ok", health.status === "ok", health);
 check("P4 seller /health chain is 56", health.chain === HIRE_CHAIN_MAINNET);
 check("P4 seller /health owner matches", health.seller.toLowerCase() === OWNER.toLowerCase());
 check("P4 seller /health agentId matches", health.agentId === AGENT_ID, health.agentId);
-check("P4 seller /health hire disabled (flag off)", health.hire === "disabled");
+// X.242-DEPLOY-ENABLE — Mainnet hiring was authorized ON for the seller
+// (MAINNET_HIRE_ENABLED=true). The preflight asserts the live authorized state.
+check("P4 seller /health hire enabled (X.242 authorized state)", health.hire === "enabled");
 
 // ---- P4: contract configuration (verified table, no invented addresses) ----
 check(
@@ -147,6 +149,12 @@ for (const wallet of buyerCandidates) {
   );
   if (wallet === BUYER) {
     check(`P5 buyer $U balance verified (read-only)`, uBal >= 0n, uBal.toString());
+    check(
+      `P5 buyer $U sufficient for the first hire (≥ 1e13 wei)`,
+      uBal >= requiredU,
+      uBal.toString()
+    );
+    check(`P5 buyer BNB nonzero for gas`, bnbBal > 0n, bnbBal.toString());
     if (!ready) {
       console.log(
         `BLOCKED — INSUFFICIENT BUYER $U (buyer ${wallet}: ${(Number(uBal) / 1e18).toFixed(6)} $U < 0.00001 $U)`
@@ -205,6 +213,4 @@ if (failed > 0) {
   process.exit(1);
 }
 console.log(`X.241 mainnet preflight: ${passed} checks passed, 0 failed`);
-console.log(
-  "BLOCKED — INSUFFICIENT BUYER $U (see P5 verdicts) — preflight is read-only; no action taken."
-);
+console.log("Preflight is read-only; no transaction, approval, or transfer is ever performed.");

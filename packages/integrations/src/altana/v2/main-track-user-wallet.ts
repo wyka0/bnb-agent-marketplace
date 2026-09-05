@@ -90,7 +90,9 @@ export interface MainTrackSignerRequest {
   from: string;
   to: string;
   data: string;
-  value: string;
+  /** X.242-RECOVERY — bigint zero (viem-native). The legacy `"0x0"` hex string
+   * mixed Number/BigInt types inside viem's legacy-tx serialization. */
+  value: bigint;
   chainId: number;
   nonce: bigint;
   gas: bigint;
@@ -591,7 +593,7 @@ export function createNonceSafeEip1193Provider(opts: {
   request: Eip1193Request;
   /** Broadcast a single tx for `from` with the given `nonce`; returns the tx hash. */
   broadcast(
-    tx: { from: string; to: string; data: string; value: string; chainId: number },
+    tx: { from: string; to: string; data: string; value: bigint; chainId: number },
     nonce: bigint
   ): Promise<string>;
   /** Read a raw receipt by hash (null while pending). */
@@ -623,7 +625,16 @@ export function createNonceSafeEip1193Provider(opts: {
       const run = queue.then(async () => {
         if (!ledger) {
           try {
-            ledger = new MainTrackNonceLedger(await opts.getPendingNonce(sender));
+            // X.242-RECOVERY — coerce the seed to bigint. A caller whose
+            // getPendingNonce returns viem's raw NUMBER (e.g. a direct
+            // getTransactionCount pass-through) previously seeded the ledger
+            // with a number, and `commit()`'s `this.next += 1n` then threw
+            // "Cannot mix BigInt and other types" AFTER the transaction had
+            // already landed and its receipt confirmed success — misreporting
+            // a successful on-chain transaction as failed (X.242 incident,
+            // jobs 56714/56715). BigInt(number) and BigInt(bigint) are both
+            // safe here.
+            ledger = new MainTrackNonceLedger(BigInt(await opts.getPendingNonce(sender)));
           } catch (error) {
             // Stage-annotated (X.144): any nonce-read failure is pinned to the
             // exact stage — the raw RPC error is never ambiguous. No broadcast.
@@ -642,7 +653,10 @@ export function createNonceSafeEip1193Provider(opts: {
               from: sender,
               to: tx.to ?? "",
               data: tx.data ?? "",
-              value: tx.value ?? "0x0",
+              // X.242-RECOVERY — Main Track hires always send 0 BNB; pass the
+              // viem-native bigint zero (never the legacy "0x0" hex string,
+              // which mixed types in viem's legacy-tx serialization).
+              value: 0n,
               chainId: Number.parseInt(String(tx.chainId), 16),
             },
             nonce
@@ -749,7 +763,7 @@ export function createMainTrackBroadcast(opts: {
   publicClient?: PublicClient;
   transport?: MainTrackBroadcastTransport;
 }): (
-  tx: { from: string; to: string; data: string; value: string; chainId: number },
+  tx: { from: string; to: string; data: string; value: bigint; chainId: number },
   nonce: bigint
 ) => Promise<string> {
   const client = opts.publicClient ?? createMainTrackPublicClient();

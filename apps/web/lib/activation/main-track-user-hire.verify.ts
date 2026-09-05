@@ -2344,6 +2344,191 @@ async function main(): Promise<void> {
     check("X.242 testnet 1-U quote behavior unchanged", tn.ok === true && tn.price === PRICE);
   }
 
+  // X.242-RECOVERY — landed-transaction false-failure regression tests.
+  // Incident: the nonce-safe provider misreported a SUCCESSFUL on-chain
+  // createJob as failed ("Cannot mix BigInt and other types") because (a) the
+  // ledger was seeded with viem's raw NUMBER nonce and commit() does
+  // `next += 1n`, and (b) the broadcast seam passed the "0x0" hex string.
+  // These tests prove a landed transaction is authoritative and never
+  // misreported, and distinguish broadcast failure from receipt processing.
+  {
+    const { createNonceSafeEip1193Provider } = await import("@bnb-marketplace/integrations/altana");
+
+    const mkProvider = (over: {
+      getPendingNonce?: (from: string) => Promise<bigint | number>;
+      getReceipt?: (hash: string) => Promise<unknown>;
+      broadcastImpl?: (
+        tx: { from: string; to: string; data: string; value: bigint; chainId: number },
+        nonce: bigint
+      ) => Promise<string>;
+      receiptMaxAttempts?: number;
+    }) => {
+      const sent: Array<{ to: string; data: string; value: unknown; nonce: bigint }> = [];
+      const hashes: string[] = [];
+      const provider = createNonceSafeEip1193Provider({
+        request: async (method) => {
+          if (method === "eth_requestAccounts") return [USER];
+          if (method === "eth_chainId") return "0x61";
+          return null;
+        },
+        getPendingNonce: over.getPendingNonce ?? (async () => 0n),
+        broadcast: async (tx, nonce) => {
+          sent.push({ to: tx.to, data: tx.data, value: tx.value, nonce });
+          const hash = over.broadcastImpl
+            ? await over.broadcastImpl(tx, nonce)
+            : `0xhash${sent.length}`;
+          hashes.push(hash);
+          return hash;
+        },
+        getReceipt:
+          over.getReceipt ??
+          (async (hash: string) =>
+            hashes.includes(hash) ? { status: "success", blockNumber: 1n, gasUsed: 21000n } : null),
+        receiptMaxAttempts: over.receiptMaxAttempts ?? 10,
+        receiptIntervalMs: 1,
+      });
+      return { provider, sent, hashes };
+    };
+    const send = (provider: unknown, to = "0x1111111111111111111111111111111111111111") =>
+      (provider as (m: string, p: unknown[]) => Promise<unknown>)("eth_sendTransaction", [
+        { from: USER, to, data: "0xabcdef01", value: "0x0", chainId: "0x61" },
+      ]);
+
+    // R1 — THE incident shape: number-seeded nonce + successful receipt must
+    // return the hash (never throw "Cannot mix BigInt").
+    {
+      const { provider, hashes } = mkProvider({ getPendingNonce: async () => 0 });
+      const out = await send(provider);
+      check(
+        "X.242R1 landed tx (number-seeded nonce) is NOT reported as failed",
+        out === hashes[0] && typeof out === "string"
+      );
+    }
+    // R2 — the broadcast seam receives bigint 0n, never the "0x0" string.
+    {
+      const { provider, sent } = mkProvider({ getPendingNonce: async () => 0n });
+      await send(provider);
+      check(
+        'X.242R2 broadcast value is bigint 0n (not "0x0")',
+        sent[0]?.value === 0n && typeof sent[0]?.value === "bigint"
+      );
+    }
+    // R3 — nonce ledger advances across sequential sends (number seed): a
+    // landed tx's nonce is committed and never reused (no replay/replacement).
+    {
+      const { provider, sent } = mkProvider({ getPendingNonce: async () => 0 });
+      await send(provider);
+      await send(provider);
+      check(
+        "X.242R3 sequential sends use distinct committed nonces (no nonce reuse)",
+        sent.length === 2 && sent[0].nonce === 0n && sent[1].nonce === 1n
+      );
+    }
+    // R4 — a GENUINE broadcast failure is still a failure, with the
+    // stage-prefixed reason (distinguishes broadcast from receipt handling).
+    {
+      const { provider } = mkProvider({
+        getPendingNonce: async () => 0n,
+        broadcastImpl: async () => {
+          throw new Error("rpc rejected the send");
+        },
+      });
+      let threw = "";
+      try {
+        await send(provider);
+      } catch (e) {
+        threw = String(e);
+      }
+      check(
+        "X.242R4 genuine broadcast failure still fails (stage-prefixed)",
+        threw.includes("broadcast failed") && threw.includes("rpc rejected")
+      );
+    }
+    // R5 — a GENUINE reverted receipt is still a failure.
+    {
+      const { provider } = mkProvider({
+        getPendingNonce: async () => 0n,
+        getReceipt: async () => ({ status: "0x0", blockNumber: 1n, gasUsed: 21000n }),
+      });
+      let threw = "";
+      try {
+        await send(provider);
+      } catch (e) {
+        threw = String(e);
+      }
+      check("X.242R5 reverted receipt still produces failure", threw.includes("reverted"));
+    }
+    // R6 — incident-shaped transient receipt error, handled the way
+    // production does (via the reliable receipt reader): the reader catches
+    // the non-pending viem BigInt error, returns null (pending), the poller
+    // retries, and the LANDED transaction's hash is preserved and returned.
+    // (A raw unwrapped getReceipt error must instead fail closed — R4/R5
+    // cover genuine failures.)
+    {
+      const { createReliableReceiptReader } = await import("@bnb-marketplace/integrations/altana");
+      let calls = 0;
+      const reliable = createReliableReceiptReader({
+        read: async () => {
+          calls += 1;
+          if (calls === 1)
+            throw new Error("Cannot mix BigInt and other types, use explicit conversions");
+          return { status: "success", blockNumber: 1n, gasUsed: 21000n };
+        },
+      });
+      const { provider, hashes } = mkProvider({
+        getPendingNonce: async () => 0n,
+        getReceipt: reliable,
+      });
+      const out = await send(provider);
+      check(
+        "X.242R6 transient receipt error self-heals; tx hash preserved",
+        out === hashes[0] && calls >= 2
+      );
+    }
+    // R7 — duplicate-job safety at the two REAL protection layers:
+    // (a) PREPARE rejects an already-landed job id (a re-run whose
+    //     nextJobId collides with history can never produce a plan), and
+    // (b) the runner's in-flight attemptToken guard broadcasts nothing on a
+    //     duplicate invocation with the same token.
+    {
+      const landedAttempt = prepareMainTrackUserHire({
+        ...prepareInput(),
+        nextJobId: 641n,
+        historyJobIds: ["641"],
+      } as never);
+      check(
+        "X.242R7a an already-landed job id is rejected at PREPARE (no plan, no sends possible)",
+        landedAttempt.ok === false &&
+          /historical|collides/i.test(
+            landedAttempt.ok === false ? (landedAttempt.reason ?? "") : ""
+          )
+      );
+      const mock = mockWallet();
+      const { plan, expectations } = planFromPrepare();
+      const run = async () =>
+        runMainTrackUserHireFromWallet({
+          request: mock.request,
+          plan,
+          expectations,
+          confirmStep: async () => true,
+          verifyStep: async () => ({ ok: true }),
+          receiptMaxAttempts: 1,
+          receiptIntervalMs: 1,
+          attemptToken: "x242r7b-duplicate",
+        });
+      const first = run();
+      const second = run();
+      const [a, b] = await Promise.all([first, second]);
+      check(
+        "X.242R7b duplicate in-flight attempt (same token) broadcasts nothing extra",
+        b.ok === false &&
+          /already in progress/i.test(b.ok === false ? (b.reason ?? "") : "") &&
+          mock.sends.length === 5
+      );
+      void a;
+    }
+  }
+
   if (failures === 0) {
     console.log("X.149 main-track-user-hire verify: ALL CHECKS PASSED");
   } else {

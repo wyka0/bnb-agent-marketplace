@@ -1000,7 +1000,7 @@ async function main(): Promise<void> {
         transport,
       });
       const hash = await broadcast(
-        { from: USER, to: MAIN_TRACK_COMMERCE, data: "0x00", value: "0x0", chainId: 97 },
+        { from: USER, to: MAIN_TRACK_COMMERCE, data: "0x00", value: 0n, chainId: 97 },
         0n
       );
       check("26b. gasPrice read from read client", readGasPrice === 1);
