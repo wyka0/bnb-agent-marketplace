@@ -123,12 +123,23 @@ export const MARKETPLACE_NETWORK_LABELS = {
   testnet: "8004scan Testnet",
 } as const;
 
-/** Parse a raw `network` value into a valid scope (invalid → "all"). Pure. */
+/**
+ * Parse a raw `network` value into a valid scope. Pure.
+ *
+ * X.243 — the default (and any unrecognized value) resolves to "mainnet",
+ * NOT the legacy cross-chain "all" merge. Rationale: the selector presents
+ * the default view as "Mainnet active", so the catalog beneath it must
+ * contain ONLY chain-56 agents — a merged 56+97 grid mislabeled as Mainnet
+ * was the user-reported cross-network mixing bug. The "all" scope remains
+ * a supported explicit value (backward-compatible deep links) but is no
+ * longer reachable from the UI selector (which only emits mainnet/testnet).
+ * Fail-closed: an invalid value never yields the merged view.
+ */
 export function parseMarketplaceNetworkScope(
   raw: string | undefined | null
 ): MarketplaceNetworkScope {
-  if (raw === "mainnet" || raw === "testnet") return raw;
-  return "all";
+  if (raw === "all" || raw === "mainnet" || raw === "testnet") return raw;
+  return "mainnet";
 }
 
 export interface GetMarketplaceAgentsOptions {
@@ -138,10 +149,12 @@ export interface GetMarketplaceAgentsOptions {
   /** Optional live registry search (name, metadata, or registry identity). */
   query?: string;
   /**
-   * X.216 — optional discovery-network scope. Default "all" keeps the exact
-   * X.154 behavior (chain 56 + 97 merged). "mainnet" reads only the chain-56
-   * registry; "testnet" reads only the chain-97 registry. Pure read-scope
-   * selection — never touches commercial hire configuration.
+   * X.216/X.243 — optional discovery-network scope. "mainnet" reads only
+   * the chain-56 registry; "testnet" reads only the chain-97 registry;
+   * "all" (explicit only) keeps the X.154 merged read. The caller resolves
+   * the scope from the URL (default "mainnet" — see
+   * parseMarketplaceNetworkScope). Pure read-scope selection — never
+   * touches commercial hire configuration.
    */
   scope?: MarketplaceNetworkScope;
 }

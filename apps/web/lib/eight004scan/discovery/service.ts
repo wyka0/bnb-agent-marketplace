@@ -31,6 +31,7 @@
 
 import { has8004ScanApiKey, listAgents, type Scan8004Result } from "../client.ts";
 import { normalizeAgent } from "../normalize.ts";
+import type { MarketplaceNetworkScope } from "../marketplace.ts";
 import type { Scan8004Meta } from "../types";
 import {
   classifyAgent,
@@ -52,6 +53,19 @@ const BSC_CHAIN_QUERIES = [
 ] as const;
 
 /**
+ * X.243 — resolve the per-chain queries for a discovery scope. The scope is
+ * enforced at the DATA LAYER (never client-side-only filtering): "mainnet"
+ * queries only the chain-56 registry, "testnet" only the chain-97 registry,
+ * "all" keeps the X.154 merged read. A chain-97 record can therefore never
+ * enter a Mainnet-scoped discovery result (and vice versa).
+ */
+function chainQueriesForScope(scope: MarketplaceNetworkScope) {
+  if (scope === "mainnet") return BSC_CHAIN_QUERIES.filter((c) => c.chainId === 56);
+  if (scope === "testnet") return BSC_CHAIN_QUERIES.filter((c) => c.chainId === 97);
+  return BSC_CHAIN_QUERIES;
+}
+
+/**
  * One bounded BNB-chain read: a `GET /agents` per BNB chain (56 mainnet +
  * 97 testnet), merged into a single result. Bounded at 2 requests per keyword
  * (never a loop over the registry). The API's `chainId` filter is
@@ -64,9 +78,11 @@ async function listBscAgents(params: {
   search?: string;
   sortBy?: "name" | "created_at" | "stars" | "token_id" | "total_score";
   sortOrder?: "asc" | "desc";
+  /** X.243 — data-layer chain enforcement for the selected network scope. */
+  scope?: MarketplaceNetworkScope;
 }): Promise<Scan8004Result<Scan8004Agent>> {
   const results = await Promise.all(
-    BSC_CHAIN_QUERIES.map((c) =>
+    chainQueriesForScope(params.scope ?? "all").map((c) =>
       listAgents({
         page: params.page,
         limit: params.limit,
@@ -259,6 +275,13 @@ export interface GetBscCategoryDiscoveryOptions {
   /** Bounded page size per category keyword (1..100). Single page each. */
   maxPerCategory?: number;
   page?: number;
+  /**
+   * X.243 — network scope enforced at the data layer. "mainnet" reads only
+   * chain 56, "testnet" only chain 97, "all" keeps the X.154 merged read.
+   * Default "all" (the bare-URL marketplace passes its resolved scope
+   * explicitly — see marketplace/page.tsx).
+   */
+  scope?: MarketplaceNetworkScope;
 }
 
 /**
@@ -283,11 +306,12 @@ export async function getBscCategoryDiscovery(
 
   const limit = Math.min(Math.max(options.maxPerCategory ?? 100, 1), 100);
   const page = options.page ?? 1;
+  const scope = options.scope ?? "all";
 
   const inputs = await Promise.all(
     DISCOVERY_CATEGORIES.map(async ({ key, searchKeyword }) => ({
       key,
-      result: await listBscAgents({ page, limit, search: searchKeyword }),
+      result: await listBscAgents({ page, limit, search: searchKeyword, scope }),
     }))
   );
 

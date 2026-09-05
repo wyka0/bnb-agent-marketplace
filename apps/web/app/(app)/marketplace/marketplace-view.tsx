@@ -726,9 +726,13 @@ export function MarketplaceView({
                   // The EXISTING network-switch mechanism: URL param routing.
                   // Build the canonical URL with the explicit network param so
                   // all other toolbar state survives the switch.
+                  // X.243 — reset the page on a network switch (matches the
+                  // leaderboard pattern): page N of one network must never
+                  // land on page N of the other network's catalog.
                   const p = new URLSearchParams(searchParams.toString());
                   p.set("network", next);
                   p.delete("focus");
+                  p.delete("page");
                   router.replace(`${pathname}?${p.toString()}`, { scroll: false });
                 }}
               />

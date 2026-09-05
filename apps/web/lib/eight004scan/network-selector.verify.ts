@@ -67,11 +67,15 @@ const viewSource = readFileSync(
 check("scope parse: 'mainnet' → mainnet", parseMarketplaceNetworkScope("mainnet") === "mainnet");
 check("scope parse: 'testnet' → testnet", parseMarketplaceNetworkScope("testnet") === "testnet");
 check(
-  "scope parse: undefined/invalid → 'all' (X.154 default preserved)",
-  parseMarketplaceNetworkScope(undefined) === "all" &&
-    parseMarketplaceNetworkScope("") === "all" &&
-    parseMarketplaceNetworkScope("56") === "all" &&
-    parseMarketplaceNetworkScope("mainnet-testnet") === "all"
+  "scope parse: explicit 'all' remains a supported scope (X.154 path intact)",
+  parseMarketplaceNetworkScope("all") === "all"
+);
+check(
+  "X.243 scope parse: undefined/invalid → 'mainnet' (default never yields the merged view — fail closed)",
+  parseMarketplaceNetworkScope(undefined) === "mainnet" &&
+    parseMarketplaceNetworkScope("") === "mainnet" &&
+    parseMarketplaceNetworkScope("56") === "mainnet" &&
+    parseMarketplaceNetworkScope("mainnet-testnet") === "mainnet"
 );
 check(
   "labels: '8004scan Mainnet' / '8004scan Testnet' (single source of truth)",
@@ -83,7 +87,9 @@ check(
 
 check(
   "1 Mainnet → clicking Testnet opens modal (pending set only on click)",
-  /if \(!isActive && !switching\) setPending\(network\)/.test(selectorSource)
+  /if \(!isActive && !switching\) \{\s*setSwitchError\(null\);\s*setPending\(network\);\s*\}/.test(
+    selectorSource
+  )
 );
 check(
   "3/4 modal title is dynamic 'Switch to {Testnet|Mainnet}?'",
@@ -115,14 +121,16 @@ check(
 );
 check(
   "clicking the ACTIVE network never opens the modal",
-  /if \(!isActive && !switching\) setPending\(network\)/.test(selectorSource)
+  /if \(!isActive && !switching\) \{\s*setSwitchError\(null\);\s*setPending\(network\);\s*\}/.test(
+    selectorSource
+  )
 );
 
 // --- Cancel semantics (7/8) -------------------------------------------
 
 check(
-  "7/8 Cancel closes the modal only (setPending(null), no onSwitch)",
-  /<Button variant="outline" onClick=\{\(\) => setPending\(null\)\} disabled=\{switching\}>/.test(
+  "7/8 Cancel closes the modal only (clears pending + error, no onSwitch)",
+  /onClick=\{\(\) => \{[\s\S]*?setPending\(null\);[\s\S]*?setSwitchError\(null\);[\s\S]*?\}\}[\s\S]*?disabled=\{switching\}\s*>/.test(
     selectorSource
   )
 );
@@ -187,12 +195,13 @@ check(
 // --- Failure/failure-free semantics (15/16) -----------------------------
 
 check(
-  "15/16 selected network is prop-derived (URL truth) — only modal pending/switching are local state",
+  "15/16 selected network is prop-derived (URL truth) — modal pending/switching/error are the only local state",
   /parseMarketplaceNetworkScope\(scope\) === "testnet" \? "testnet" : "mainnet"/.test(
     selectorSource
   ) &&
-    // the ONLY useState hooks are the modal's pending + switching flags
-    (selectorSource.match(/React\.useState/g) ?? []).length === 2
+    // X.243 — the modal's local state is pending + switching + switchError
+    // (switchError is the truthful switch-failure surface).
+    (selectorSource.match(/React\.useState/g) ?? []).length === 3
 );
 check(
   "16 active state is derived from the scope prop (URL-driven truth)",
@@ -204,8 +213,8 @@ check(
 // --- Accessibility (17/18/19/20) ---------------------------------------
 
 check(
-  "17 Escape closes the modal when not switching (Radix onOpenChange guard)",
-  /if \(!switching\) setPending\(null\)/.test(selectorSource)
+  "17 Escape closes the modal when not switching (Radix onOpenChange guard clears pending + error)",
+  /if \(!switching\) \{\s*setPending\(null\);\s*setSwitchError\(null\);\s*\}/.test(selectorSource)
 );
 check(
   "18/19 accessible title + description via shared Modal primitives",
@@ -452,6 +461,276 @@ check(
       readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8")
     )
   );
+}
+
+// --- X.243 — Network isolation & switch reliability -----------------------
+//
+// Covers the three user-reported bugs: (1) the switch modal could hang
+// forever on "Switching to Testnet…" because NOTHING cleared the loading
+// state; (2)/(3) cross-network catalog mixing via the mislabeled merged
+// default and the scope-blind category discovery.
+{
+  // ---- Behavioral: loader scope isolation with a stubbed upstream ----
+  // getMarketplaceAgents must query ONLY the selected chain's registry and
+  // return ONLY that chain's records (data-layer enforcement, not client
+  // filtering).
+  const upstreamCalls: Array<Record<string, string>> = [];
+  const realFetch = globalThis.fetch;
+  const stubAgent = (chainId: number, tokenId: string) => ({
+    agent_id: `${chainId}:0x${"1".repeat(40)}:${tokenId}`,
+    token_id: tokenId,
+    chain_id: chainId,
+    chain_type: "evm",
+    contract_address: "0x" + "2".repeat(40),
+    is_testnet: chainId === 97,
+    owner_id: "o",
+    owner_address: "0x" + "3".repeat(40),
+    owner_ens: null,
+    owner_username: null,
+    owner_avatar_url: null,
+    owner_publisher_tier: null,
+    owner_certified_name: null,
+    name: `Agent ${chainId}-${tokenId}`,
+    description: "",
+    image_url: null,
+    is_verified: true,
+    star_count: 0,
+    supported_protocols: [],
+    x402_supported: false,
+    total_score: 0,
+    rank: null,
+    network_rank: null,
+    health_score: null,
+    total_feedbacks: 0,
+    average_score: 0,
+    cross_chain_versions: null,
+    created_at: "2026-09-05T00:00:00Z",
+    updated_at: "2026-09-05T00:00:00Z",
+    id: `stub-${tokenId}`,
+  });
+  // Install the stubbed upstream (the IIFE assigns globalThis.fetch; the
+  // return value is intentionally unused — the stub is the side effect).
+  const _stubFetch = (() => {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      const chainId = Number(url.searchParams.get("chainId"));
+      upstreamCalls.push({ chainId: String(chainId), page: url.searchParams.get("page") ?? "1" });
+      // The 8004scan list envelope: { success, data: T[], meta }.
+      const body = {
+        success: true,
+        data: [stubAgent(chainId, `${chainId}01`), stubAgent(chainId, `${chainId}02`)],
+        meta: {
+          timestamp: "2026-09-05T00:00:00Z",
+          pagination: { page: 1, limit: 24, total: 2, hasMore: false },
+        },
+      };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as typeof fetch;
+  })();
+
+  const savedKey = process.env["8004SCAN_API_KEY"];
+  process.env["8004SCAN_API_KEY"] = "test-key";
+  try {
+    const { getMarketplaceAgents } = await import("./marketplace.ts");
+    // A. Mainnet selection → chain-56 catalog ONLY.
+    upstreamCalls.length = 0;
+    {
+      const data = await getMarketplaceAgents({ scope: "mainnet" });
+      check(
+        "X.243A Mainnet selection → ONLY the chain-56 registry is queried",
+        upstreamCalls.length === 1 && upstreamCalls[0]?.chainId === "56"
+      );
+      check(
+        "X.243A Mainnet selection → catalog contains ONLY chain-56 agents",
+        data.state === "ready" && data.agents.every((a) => a.chainId === 56)
+      );
+    }
+
+    // B. Testnet selection → chain-97 catalog ONLY.
+    upstreamCalls.length = 0;
+    {
+      const data = await getMarketplaceAgents({ scope: "testnet" });
+      check(
+        "X.243B Testnet selection → ONLY the chain-97 registry is queried",
+        upstreamCalls.length === 1 && upstreamCalls[0]?.chainId === "97"
+      );
+      check(
+        "X.243B Testnet selection → catalog contains ONLY chain-97 agents",
+        data.state === "ready" && data.agents.every((a) => a.chainId === 97)
+      );
+    }
+
+    // I/J. Pagination isolation: page 2 of each network queries only that
+    // chain, and totals are per-network (never merged across networks).
+    upstreamCalls.length = 0;
+    {
+      const data = await getMarketplaceAgents({ scope: "mainnet", page: 2 });
+      check(
+        "X.243I Mainnet page 2 → upstream queried with page=2 on chain 56 only",
+        upstreamCalls.length === 1 &&
+          upstreamCalls[0]?.chainId === "56" &&
+          upstreamCalls[0]?.page === "2"
+      );
+      check(
+        "X.243J Mainnet totals are per-network (stub total 2, never summed with chain 97)",
+        data.state === "ready" && data.pagination?.total === 2
+      );
+      upstreamCalls.length = 0;
+      const dataT = await getMarketplaceAgents({ scope: "testnet", page: 2 });
+      check(
+        "X.243I Testnet page 2 → upstream queried with page=2 on chain 97 only",
+        upstreamCalls.length === 1 &&
+          upstreamCalls[0]?.chainId === "97" &&
+          upstreamCalls[0]?.page === "2"
+      );
+      check(
+        "X.243J Testnet totals are per-network (stub total 2)",
+        dataT.state === "ready" && dataT.pagination?.total === 2
+      );
+    }
+
+    // A/B discovery half: a category facet must never surface the other
+    // network's agents (the data layer scopes the discovery reads).
+    upstreamCalls.length = 0;
+    {
+      const { getBscCategoryDiscovery } = await import("./discovery/service.ts");
+      const d = await getBscCategoryDiscovery({ maxPerCategory: 5, scope: "testnet" });
+      const chains = new Set(upstreamCalls.map((c) => c.chainId));
+      check(
+        "X.243A(discovery) Testnet selection → discovery queries ONLY chain 97",
+        chains.size === 1 && chains.has("97")
+      );
+      const discoveredChains = new Set(
+        d.buckets.flatMap((b) => b.discovered.map((x) => x.agent.chainId))
+      );
+      check(
+        "X.243B(discovery) Testnet discovery results contain ONLY chain-97 agents",
+        [...discoveredChains].every((c) => c === 97)
+      );
+      upstreamCalls.length = 0;
+      const dM = await getBscCategoryDiscovery({ maxPerCategory: 5, scope: "mainnet" });
+      const chainsM = new Set(upstreamCalls.map((c) => c.chainId));
+      check(
+        "X.243A(discovery) Mainnet selection → discovery queries ONLY chain 56",
+        chainsM.size === 1 && chainsM.has("56")
+      );
+      const discoveredM = new Set(
+        dM.buckets.flatMap((b) => b.discovered.map((x) => x.agent.chainId))
+      );
+      check(
+        "X.243B(discovery) Mainnet discovery results contain ONLY chain-56 agents",
+        [...discoveredM].every((c) => c === 56)
+      );
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+    if (savedKey === undefined) delete process.env["8004SCAN_API_KEY"];
+    else process.env["8004SCAN_API_KEY"] = savedKey;
+  }
+
+  // ---- C/D/E/F: the switch lifecycle (selector source invariants) ----
+  // C/D. PRIMARY completion: an effect closes the modal when the scope prop
+  // becomes the pending target (both directions — the same effect).
+  check(
+    "X.243C/D success effect closes the modal when current becomes pending",
+    /React\.useEffect\(\(\) => \{\s*if \(!switching \|\| pending === null\) return;\s*if \(current === pending\) \{/.test(
+      selectorSource
+    ) && /setSwitching\(false\);\s*setPending\(null\);/.test(selectorSource)
+  );
+  // E. The loading state cannot persist forever: bounded fallback clears it.
+  check(
+    "X.243E bounded failure fallback clears the loading state (no permanent 'Switching to …')",
+    /const SWITCH_FALLBACK_MS = 15_000;/.test(selectorSource) &&
+      /setTimeout\(\(\) => \{\s*setSwitching\(false\);\s*setPending\(null\);/.test(selectorSource)
+  );
+  // F. A failed switch surfaces a truthful error and clears loading.
+  check(
+    "X.243F failed switch shows a truthful error (role=alert) with loading cleared",
+    /role="alert"/.test(selectorSource) &&
+      /did not complete\. The catalog still shows the previously selected network/.test(
+        selectorSource
+      )
+  );
+  // The fallback is the SECONDARY path (a comment documents the primary).
+  check(
+    "X.243 lifecycle documented: timeout is the SECONDARY path, scope-change is primary",
+    /SECONDARY failure path/.test(selectorSource) && /PRIMARY completion path/.test(selectorSource)
+  );
+
+  // ---- G/H: stale-response protection (architecture) ----
+  // The catalog is server-rendered per navigation (no client fetch), and the
+  // modal's close is driven by the SAME scope prop that delivers the new
+  // catalog — so an older network's payload can never overwrite a newer one.
+  check(
+    "X.243G/H the view performs ZERO client-side catalog fetches (server props only — no stale-response race)",
+    !/await fetch\(|useQuery|useSWR/.test(viewSource)
+  );
+  check(
+    "X.243G/H the modal closes only when the scope prop changed (same render that delivers the new catalog)",
+    /React\.useEffect\(\(\) => \{\s*if \(!switching \|\| pending === null\) return;/.test(
+      selectorSource
+    )
+  );
+  check(
+    "X.243G/H upstream reads are no-store (no cross-network cache reuse)",
+    /cache: "no-store"/.test(readFileSync(new URL("./client.ts", import.meta.url), "utf8"))
+  );
+
+  // ---- K: cache isolation ----
+  check(
+    "X.243K no client-side catalog cache exists to cross networks (no react-query/SWR usage in the view)",
+    !/useQuery\(|useSWR\(/.test(viewSource) && !/useQuery\(|useSWR\(/.test(selectorSource)
+  );
+  check(
+    "X.243K the page is force-dynamic (per-request server render — no cached cross-network payloads)",
+    /export const dynamic = "force-dynamic";/.test(pageSource) && /revalidate = 0/.test(pageSource)
+  );
+
+  // ---- Switch resets pagination (no cross-network page carryover) ----
+  check(
+    "X.243 network switch resets the page (matches leaderboard pattern — page N of one network never lands on page N of the other)",
+    /p\.delete\("page"\);/.test(viewSource)
+  );
+
+  // ---- Discovery scope wiring ----
+  check(
+    "X.243 the marketplace page passes its resolved scope to discovery (category facets cannot surface the other network)",
+    /getBscCategoryDiscovery\(\{ maxPerCategory: 100, scope \}\)/.test(pageSource)
+  );
+
+  // ---- L/M: agent chain identity ----
+  {
+    const { chainIdFromAgentId, resolveHireChainConfig } =
+      await import("@bnb-marketplace/integrations/altana");
+    check(
+      "X.243L Mainnet Agent 334760 resolves to chain 56",
+      chainIdFromAgentId("56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:334760") === 56
+    );
+    check(
+      "X.243M Testnet Agent 1906 resolves to chain 97",
+      chainIdFromAgentId("97:0x8004a818bfb912233c491871b3d84c89a494bd9e:1906") === 97
+    );
+    // N/O: hire-config fallback is impossible (throws on unknown, disjoint tables).
+    let threw = false;
+    try {
+      resolveHireChainConfig(137);
+    } catch {
+      threw = true;
+    }
+    check("X.243N/O resolveHireChainConfig throws for unknown chains (no silent fallback)", threw);
+    const cfg56 = resolveHireChainConfig(56);
+    const cfg97 = resolveHireChainConfig(97);
+    check(
+      "X.243N Mainnet hire config (56) cannot fall back to chain-97 contracts",
+      cfg56.chainId === 56 && cfg56.commerce !== cfg97.commerce && cfg56.registry !== cfg97.registry
+    );
+    check(
+      "X.243O Testnet hire config (97) cannot fall back to chain-56 contracts",
+      cfg97.chainId === 97 &&
+        cfg97.commerce !== cfg56.commerce &&
+        cfg97.paymentToken !== cfg56.paymentToken
+    );
+  }
 }
 
 console.log("");
