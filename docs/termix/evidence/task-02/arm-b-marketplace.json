@@ -1,0 +1,36 @@
+{
+  "arm": "B",
+  "elapsedMs": 4159,
+  "upstreamRequests": 4,
+  "monetaryCost": "NOT MEASURABLE",
+  "output": {
+    "rebalancing": {
+      "state": "ready",
+      "hits": 39,
+      "retrieved": 39,
+      "matched": 30,
+      "justificationAvailable": true
+    },
+    "grid-trading": {
+      "state": "ready",
+      "hits": 8,
+      "retrieved": 8,
+      "matched": 3,
+      "justificationAvailable": true
+    },
+    "yield-optimisation": {
+      "state": "ready",
+      "hits": 131,
+      "retrieved": 100,
+      "matched": 58,
+      "justificationAvailable": true
+    },
+    "health-factor-monitoring": {
+      "state": "ready",
+      "hits": 14,
+      "retrieved": 14,
+      "matched": 3,
+      "justificationAvailable": true
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "task": "TASK 06 — BSC Testnet ERC-8183 security-posture report (read-only on-chain analysis)",
+  "taskDescription": "Produce a BSC Testnet ERC-8183 security-posture report: contract wiring (Commerce, Router, Policy), dispute-window configuration, job status census over a recent sample 50, refund-eligibility exposure, buyer 0x299Ce4113abF88F4997737184aa8A7a3D58AC15C allowance hygiene, suspicious/inconsistent state indicators, explicit limitations. Read-only analysis only — no execution, no transactions, no financial advice, no exploitation.",
+  "terms": {
+    "deliverables": "JSON security-posture report",
+    "quality_standards": "Deterministic on-chain read-only analysis with explicit source fields and no fabricated data",
+    "success_criteria": [
+      "valid JSON",
+      "chain 97 only",
+      "every finding sourced from public on-chain view reads"
+    ]
+  },
+  "hiredVia": "BNB Agent Marketplace — real funded ERC-8183 commercial hire of Agent 1906",
+  "agent": {
+    "agentId": "97:0x8004A818BFB912233c491871b3d84c89A494BD9e:1906",
+    "name": "BNB Agent Studio v2 Testnet Seller",
+    "chain": 97,
+    "owner": "0xB0f7681668f916eEd97dA066D31aA295D34727c0",
+    "sellerEndpoint": "https://inbook-y1-plus.tail3e3640.ts.net"
+  },
+  "buyer": "0x299Ce4113abF88F4997737184aa8A7a3D58AC15C"
+}

@@ -1,0 +1,106 @@
+{
+  "arm": "B (marketplace-hired)",
+  "procedure": "real funded ERC-8183 commercial hire through the BNB Agent Marketplace path: live seller negotiation → verified provider_sig → 5-call wallet hire → seller deterministic-discovery fulfillment → on-chain SUBMITTED state",
+  "jobId": 921,
+  "chain": 97,
+  "negotiatedPrice": "1000000000000000 (0.001 U, $U testnet token 0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565)",
+  "escrowedBudget": "1000000000000000 (0.001 U) — held in Commerce escrow",
+  "gasUsedWei": {
+    "createJob": "988437",
+    "registerJob": "171454",
+    "setBudget": "96162",
+    "approve": "60257",
+    "fund": "102529",
+    "sellerSubmit": "224333"
+  },
+  "monetaryCost": "0.001 U escrow (chain-verified) + testnet BNB gas (6 txs, 1,643,172 gas total — testnet tBNB has no market value)",
+  "transactions": [
+    {
+      "step": "createJob",
+      "hash": "0x183af552e4e777f01f7bfec78710203e8d7c7837fe6bc293ab7cb7191bf2ac43",
+      "block": 128693710,
+      "status": "success",
+      "timestamp": "2026-09-02T14:17:55Z"
+    },
+    {
+      "step": "registerJob",
+      "hash": "0x0befc54172c34848004ffa378c15b99f5035c903c96f20b36a904a7e5e199100",
+      "block": 128693714,
+      "status": "success",
+      "timestamp": "2026-09-02T14:17:57Z"
+    },
+    {
+      "step": "setBudget",
+      "hash": "0x49fb21e27fee8a7c9e99aee30ce4c1aa172b011e91159462d20195e98f20ed46",
+      "block": 128693718,
+      "status": "success",
+      "timestamp": "2026-09-02T14:17:59Z"
+    },
+    {
+      "step": "approve ($U allowance to Commerce)",
+      "hash": "0xf1ac80aada1b2cd917be5dc3461d3bb0d31598932089ea9ad2578037452abfda",
+      "block": 128693723,
+      "status": "success",
+      "timestamp": "2026-09-02T14:18:01Z"
+    },
+    {
+      "step": "fund (escrow)",
+      "hash": "0x101f50038e8d2eb3c017cf24e2c0e2bea5362a2238581f7310a7f212d3ff4b00",
+      "block": 128693736,
+      "status": "success",
+      "timestamp": "2026-09-02T14:18:07Z"
+    },
+    {
+      "step": "seller submitResult (deliverable)",
+      "hash": "0xb47242d377630b5b4d4befa854725e19e3d13d927d48df6e09c702013f0fcea9",
+      "block": 128693834,
+      "status": "success",
+      "timestamp": "2026-09-02T14:18:51Z"
+    }
+  ],
+  "lifecycle": {
+    "fundedAt": "2026-09-02T14:18:07Z",
+    "submittedAt": "2026-09-02T14:18:51Z",
+    "fundedToSubmittedMs": 44000,
+    "finalStatus": 2,
+    "finalStatusName": "SUBMITTED",
+    "deliverableHash": "0xc74f4229cdd0b84a7ed90e6d48dbc8916c79ab3301e3f49f7c301e48adbf9d41",
+    "deliverableUrl": "https://inbook-y1-plus.tail3e3640.ts.net/job/921/response"
+  },
+  "output": {
+    "deliverableManifest": {
+      "chain_id": 97,
+      "contracts": {
+        "commerce": "0xa206c0517B6371C6638CD9e4a42Cc9f02A33B0DE",
+        "policy": "0xd6a4217588F6B1F5657a92A3e94E6422aD771cEA",
+        "router": "0xD7d36D66d2F1B608A0F943f722D27e3744f66F25"
+      },
+      "job_id": 921,
+      "metadata": { "fulfillment": "deterministic-discovery", "model": "v2-seller-v1" },
+      "version": 1
+    },
+    "shortlistSummary": {
+      "source": "8004scan indexer (chain 97) + ERC-8004 registry on-chain owner verification",
+      "generatedAt": "2026-09-02T14:18:27.683Z",
+      "totalScanned": 100,
+      "returned": 5,
+      "shortlistedAgents": [
+        { "token_id": "1960", "name": "client-08-675f7292.agent", "owner_match": true },
+        { "token_id": "1961", "name": "client-09-8b583b77.agent", "owner_match": true },
+        { "token_id": "1962", "name": "client-10-298ce875.agent", "owner_match": true },
+        { "token_id": "1963", "name": "client-11-cb39b7ce.agent", "owner_match": true },
+        { "token_id": "1964", "name": "client-12-dea5ebea.agent", "owner_match": true }
+      ],
+      "everyFieldSource": "agent_id/token_id/name/description/verified/protocols/x402/average_score from the 8004scan indexer record; owner_onchain from the ERC-8004 registry getAgentInfo read — no fabricated data"
+    }
+  },
+  "outputSourceEvidence": "on-chain deliverable hash 0xc74f4229…f9d41 (submitted by seller tx 0xb47242d3…cea9) resolves to GET /job/921/response — the output provably came from the hired agent (escrow provider = seller wallet), not from any local substitute",
+  "honestDeviations": [
+    "The task requested keyword \"grid\" filtering, but the seller's keyword regex did not match the JSON-escaped description the negotiation pipeline produced, so the delivered shortlist is the UNFILTERED top-5 by the deterministic ordering (verified desc, score desc, token_id asc) — tokens 1960-1964, all five with genuine on-chain owner verification (owner_match=true). The seller transparently reported criteria.keyword=null in its output; no fabricated filtering is claimed. (The keyword filter was separately validated to work: a read-only probe found 6 genuine grid-related agents.)",
+    "All five returned agents are unverified (is_verified=false) with average_score 0 — the registry data itself reports no verified grid agents in the scanned window; the output passes this through truthfully rather than inflating."
+  ],
+  "notes": [
+    "elapsedMs funded→submitted = 44,000 ms (44 s) — the seller watcher submitted within one poll cycle after the Task-04 RPC fix.",
+    "No fabricated market data, no unsupported claims; limitations stated in the deliverable itself."
+  ]
+}

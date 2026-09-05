@@ -1,0 +1,29 @@
+{
+  "task": "security screening of untrusted 402 challenge",
+  "cases": {
+    "valid": {
+      "x402Version": 1,
+      "resource": "https://example.test/paid",
+      "accepts": [
+        {
+          "scheme": "permit2",
+          "network": "bnb-testnet",
+          "maxAmountRequired": "1000",
+          "asset": "0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565",
+          "payTo": "0x299Ce4113abF88F4997737184aa8A7a3D58AC15C",
+          "resource": "https://example.test/paid",
+          "description": "unit test resource",
+          "mimeType": "application/json",
+          "maxTimeoutSeconds": 60,
+          "extra": {
+            "assetTransferMethod": "permit2-exact"
+          }
+        }
+      ]
+    },
+    "mainnetTarget": "same challenge, selection attempted against chain 56",
+    "malformed": {
+      "totally": "not-a-402-body"
+    }
+  }
+}

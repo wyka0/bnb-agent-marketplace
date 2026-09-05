@@ -1,0 +1,7 @@
+{
+  "task": "yield-agent discovery",
+  "category": "yield-optimisation",
+  "keyword": "yield",
+  "chainId": 56,
+  "isTestnet": false
+}

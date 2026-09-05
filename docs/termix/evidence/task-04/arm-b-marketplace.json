@@ -1,0 +1,90 @@
+{
+  "arm": "B (marketplace-hired)",
+  "procedure": "real funded ERC-8183 commercial hire through the BNB Agent Marketplace path: live seller negotiation → verified provider_sig → 5-call browser-wallet hire (createJob/registerJob/setBudget/approve/fund) → seller fundedJobWatcher delivery → on-chain SUBMITTED state",
+  "jobId": 920,
+  "chain": 97,
+  "negotiatedPrice": "1000000000000000 (0.001 U, $U testnet token 0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565)",
+  "escrowedBudget": "1000000000000000 (0.001 U) — held in Commerce escrow",
+  "gasUsedWei": {
+    "createJob": "897379",
+    "registerJob": "162562",
+    "setBudget": "96162",
+    "approve": "60257",
+    "fund": "102529",
+    "sellerSubmit": "215441"
+  },
+  "monetaryCost": "0.001 U escrow (chain-verified) + testnet BNB gas (6 txs, 1,533,830 gas total — testnet tBNB has no market value)",
+  "transactions": [
+    {
+      "step": "createJob",
+      "hash": "0xf24a7c5654676cc99d25bb5f276484874f8298f9e94f0e6f914ba02d30d0c834",
+      "block": 128686021,
+      "status": "success",
+      "timestamp": "2026-09-02T13:20:15Z"
+    },
+    {
+      "step": "registerJob",
+      "hash": "0x2e04922c30ba2356c709d50525f354d640f83e9156ca400b6ee7ca21fbb618cb",
+      "block": 128686029,
+      "status": "success",
+      "timestamp": "2026-09-02T13:20:18Z"
+    },
+    {
+      "step": "setBudget",
+      "hash": "0xc34be3ff11583014a2e94baeacb799d6a59a8a3fa4c74e29d6a77e5cc1d2ff4d",
+      "block": 128686035,
+      "status": "success",
+      "timestamp": "2026-09-02T13:20:21Z"
+    },
+    {
+      "step": "approve ($U allowance to Commerce)",
+      "hash": "0xfb3c508d4a7aac2684ad5faa5f95000172c0cc82c85bb624e0fe854171330944",
+      "block": 128686042,
+      "status": "success",
+      "timestamp": "2026-09-02T13:20:24Z"
+    },
+    {
+      "step": "fund (escrow)",
+      "hash": "0xccc300b0766ea77260f71e66f7a6de3a0eba3f1ca50fdd1941accec65b3f6277",
+      "block": 128686047,
+      "status": "success",
+      "timestamp": "2026-09-02T13:20:26Z"
+    },
+    {
+      "step": "seller submitResult (deliverable)",
+      "hash": "0xbbb75532278f12d0620b262d5fef642f57890088f116ee18362485f963c9f398",
+      "block": 128688787,
+      "status": "success",
+      "timestamp": "2026-09-02T13:41:00Z"
+    }
+  ],
+  "lifecycle": {
+    "fundedAt": "2026-09-02T13:20:26Z",
+    "submittedAt": "1788356460 (2026-09-02T13:41:00Z)",
+    "fundedToSubmittedMs": 1234000,
+    "finalStatus": 2,
+    "finalStatusName": "SUBMITTED",
+    "deliverableHash": "0x2965fb04c3c5de929ef49479ef542ce648ff4aeaeda244c9140af0eebfb294c6",
+    "deliverableUrl": "https://inbook-y1-plus.tail3e3640.ts.net/job/920/response"
+  },
+  "output": {
+    "deliverableManifest": {
+      "chain_id": 97,
+      "contracts": {
+        "commerce": "0xa206c0517B6371C6638CD9e4a42Cc9f02A33B0DE",
+        "policy": "0xd6a4217588F6B1F5657a92A3e94E6422aD771cEA",
+        "router": "0xD7d36D66d2F1B608A0F943f722D27e3744f66F25"
+      },
+      "job_id": 920,
+      "metadata": { "model": "v2-seller-v1" },
+      "response": { "content": "fulfilled 920", "content_type": "text/plain" },
+      "version": 1
+    },
+    "outputSourceEvidence": "on-chain deliverable hash 0x2965fb04…294c6 (submitted by the seller's fundedJobWatcher tx 0xbbb755…f398) resolves via the ERC-8183 deliverable manifest to the seller's GET /job/920/response — the output provably came from the hired agent (escrow provider = seller wallet), not from any local substitute"
+  },
+  "notes": [
+    "The seller's canned v2 deliverable is a fulfillment acknowledgment ('fulfilled 920'), not a substantive grid-strategy analysis — the deliverable content is limited by the v2-seller implementation. The hire lifecycle, payment, and provenance are fully real and on-chain.",
+    "elapsedMs measured funded→submitted = 1,234,000 ms (the watcher was rate-limit-stalled on the seed RPC for ~20 min; after switching the seller reads to PublicNode it submitted within one poll cycle — operational note, not intrinsic latency).",
+    "No fabricated trading results, returns, P&L, or execution are claimed anywhere in this evidence."
+  ]
+}

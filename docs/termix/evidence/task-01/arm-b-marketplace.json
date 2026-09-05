@@ -1,0 +1,597 @@
+{
+  "arm": "B",
+  "procedure": "marketplace category discovery agent",
+  "elapsedMs": 1426,
+  "upstreamRequests": 1,
+  "monetaryCost": "NOT MEASURABLE",
+  "output": {
+    "state": "ready",
+    "hits": 131,
+    "retrieved": 100,
+    "matched": 58,
+    "retrievedAt": "2026-08-16T02:10:19.637Z",
+    "source": "8004scan",
+    "records": [
+      {
+        "name": "Yield Compass (Agent Studio)",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:267698",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Yield-optimisation agent operated from the Agent Studio marketplace. …",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BNB Yield Optimizer",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:265876",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…d liquidity protocols, calculates risk-adjusted yield, and migrates capital when the improvement is economically mean…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "prover.agent",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:200094",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…he on-chain economy — covering monitoring, MEV, yield, cross-chain, and agent payments. Specialized in smart contract…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "LiquidityCore.agent",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:190411",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…lt on Cosmos with IBC-enabled asset routing and auto-compounding.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "Gelato.agent",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:185769",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…dule and automate recurring on-chain tasks like yield harvesting and rebasing.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "DeFiBot.agent",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:172801",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Automate grid trading, DCA, and yield compounding across major DEXs while you sleep.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "DeFiMatrix.agent",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:171927",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Get personalized yield strategies and portfolio rebalancing based on real-time DeFi ma…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Social Relay #10887",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153809",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…t | Power 36/100. Active modules: Gov Override, Yield Cascade. 3D interactive agent — Edition 12/150 Yi He Nexus.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #10892",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153804",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Liquidity Bloom #10876",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153818",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…y. Flow element | Power 80/100. Active modules: Yield Cascade, Bridge Warp. 3D interactive agent — Edition 1/150 Yi H…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Launch Vector #10885",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153811",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…ent | Power 99/100. Active modules: Fee Siphon, Yield Cascade. 3D interactive agent — Edition 10/150 Yi He Nexus.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Bridge Phantom #10879",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153816",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…Passage element | Power 62/100. Active modules: Yield Cascade, Data Mine. 3D interactive agent — Edition 4/150 Yi He …",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #10877",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153820",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Data Vortex #10899",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153798",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…Gravity element | Power 40/100. Active modules: Yield Cascade, Fee Siphon. 3D interactive agent — Edition 24/150 Yi H…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #10937",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153760",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #10952",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153744",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Market Weave #10943",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153755",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "… Fabric element | Power 47/100. Active modules: Yield Cascade, Mint Burst. 3D interactive agent — Edition 68/150 Yi H…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #10907",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153790",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #10922",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153774",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #10967",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153727",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #10997",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153698",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #10982",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153714",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Token Forge #10986",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153709",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…nt | Power 47/100. Active modules: Bridge Warp, Yield Cascade. 3D interactive agent — Edition 111/150 Yi He Nexus.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Risk Matrix #11023",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153664",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "… | Power 45/100. Active modules: Launch Strike, Yield Cascade. 3D interactive agent — Edition 148/150 Yi He Nexus.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Swap Core #11009",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153677",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…xchange element | Power 44/100. Active modules: Yield Cascade, Pool Rebalance. 3D interactive agent — Edition 134/150…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BORT Yield Weaver #11012",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:153674",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…er Yi He Nexus autonomous trading agent. Class: Yield Weaver [Farm Strategist]. Operates on BAP-578 with TradingAgent…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "anchorhold",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:95772",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…tion, long vesting schedules, vault staking for yield.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "Vitruvius",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:87372",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…ent architect designing systems for sustainable yield. Builds, measures, iterates — no shortcuts, no hype, just worki…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "Core",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:68478",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…rection\n   - Fed policy signals\n   - US10Y bond yield\n   - Institutional ETF flows\n\n3. TECHNICAL STRUCTURE (Weight: 2…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "Yield-Farmer - Goo",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:50036",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Automated yield farming agent that rotates capital across BSC lending and liqui…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "@hongkongdoll · Ensoul",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:49214",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…h 1.64M followers, known for sophisticated DeFi yield strategies, funding rate arbitrage, and on-chain alpha sharing.…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "Syenite",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:46501",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "…sion intelligence for AI agents. Lending rates, yield opportunities, risk assessment, prediction market data, and swa…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "Yield-Farmer-X",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:45705",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Automated yield farming agent that rotates capital across BSC lending and liqui…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "Beefy powered by HeyAnon",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:45422",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Safe execution layer for Beefy yield vaults. Validates vault compatibility, checks deposit limits, h…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "Yield-GOO",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:45245",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Automated yield farming agent that rotates capital across BSC lending and liqui…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "NovaNode_03FAEC",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:23789",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Cross-chain DeFi agent specializing in yield optimization strategies.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "BetaSentinel_764127",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:23781",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "roboclaw",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:12046",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "AI agent for earning on-chain. I do yield farming, auto-compound rewards, and find safe DeFi opportunitie…",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "NeuralMind_A42951",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11068",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Cross-chain DeFi agent specializing in yield optimization strategies.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "OmegaSentinel_32E739",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11066",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "NexusSentinel_432C3E",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11061",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "GammaHub_403801",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11052",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Cross-chain DeFi agent specializing in yield optimization strategies.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "CyberOracle_741179",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11049",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "GammaSeeker_C5B5C0",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11051",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "NovaHub_2D0185",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11046",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Cross-chain DeFi agent specializing in yield optimization strategies.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "PhotonNetwork_BDAD91",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11038",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "IonProtocol_72536F",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11035",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "CyberBot_A29AFF",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11033",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Cross-chain DeFi agent specializing in yield optimization strategies.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "EpochSeeker_F4285E",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11030",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "NovaBot_D26326",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11026",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Cross-chain DeFi agent specializing in yield optimization strategies.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "FusionGuardian_CE43CD",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11021",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "NovaNetwork_3EC053",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11023",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "AxiomOracle_596EF4",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11015",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "CyberHunter_E1FA1E",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11006",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "KineticEngine_814625",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11004",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "PhotonMind_A95A71",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:11000",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Cross-chain DeFi agent specializing in yield optimization strategies.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "KineticHunter_71EAB1",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:10998",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      },
+      {
+        "name": "CyberScout_E5A98A",
+        "slug": "56:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432:10999",
+        "chainId": 56,
+        "verification": "unverified",
+        "matchedLabel": "Yield Optimisation",
+        "evidenceField": "description",
+        "evidenceText": "Multi-protocol yield aggregator and portfolio management AI.",
+        "evidenceSource": "8004scan metadata"
+      }
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "analysis": "per-category adjudication for Task 2 (cross-category triage)",
+  "criterion": "docs/termix/EXPERIMENT-PROTOCOL.md Task 2 SUCCESS CRITERIA",
+  "note": "Counts are from the saved arm outputs in this directory. Divergences between Arm A (naive substring) and Arm B (marketplace agent) were inspected record-by-record.",
+  "categories": {
+    "rebalancing": {
+      "armA_selected": 30,
+      "armB_matched": 30,
+      "divergence": 0,
+      "adjudication": "AGREEMENT — no divergence to adjudicate."
+    },
+    "grid-trading": {
+      "armA_selected": 6,
+      "armB_matched": 3,
+      "divergence": 3,
+      "adjudication": "Arm B stricter. The classifier requires the bare token 'grid' to co-occur with a trading context (dca|trading|trade|trader|bot|strategy|orders). This is the documented guard against non-trading 'grid' senses such as energy/power grid.",
+      "verified": "classifier CATEGORY_PHRASES['grid-trading'] carries an explicit `requires` context pattern for the bare 'grid' phrase."
+    },
+    "yield-optimisation": {
+      "armA_selected": 62,
+      "armB_matched": 58,
+      "divergence": 5,
+      "adjudication": "MIXED — see task-01/adjudication.json. Of 5 Arm-A-only records: 3 were genuine yield agents MISSED by Arm B (false negatives from description-precedence), 2 were persona/analyst false positives correctly rejected by Arm B."
+    },
+    "health-factor-monitoring": {
+      "armA_selected": 10,
+      "armB_matched": 3,
+      "divergence": 7,
+      "adjudication": "ALL 7 Arm-A-only records are FALSE POSITIVES correctly rejected by Arm B.",
+      "inspected_records": [
+        { "name": "Global Information A", "why_rejected_correctly": "general information agent; 'health' incidental" },
+        { "name": "Cryptnostr", "why_rejected_correctly": "general quantitative/on-chain analyst; no lending-position monitoring" },
+        { "name": "Fly", "why_rejected_correctly": "AI marketing agent for local businesses" },
+        { "name": "@alvin0617 · Ensoul", "why_rejected_correctly": "influencer/researcher persona profile" },
+        { "name": "@bull_bnb · Ensoul", "why_rejected_correctly": "influencer persona profile" },
+        { "name": "@chaowxyz · Ensoul", "why_rejected_correctly": "commentator persona profile" }
+      ],
+      "mechanism": "The classifier requires an explicit lending compound phrase (health factor | loan health | lending health | borrow health | collateral health | debt health) rather than the bare word 'health'. In this live sample that rule eliminated 7/7 incidental matches with zero observed false negatives."
+    }
+  },
+  "summary": {
+    "clear_marketplace_advantage": "health-factor-monitoring (7/7 false positives eliminated) and grid-trading (context guard applied)",
+    "clear_marketplace_weakness": "yield-optimisation (3 genuine agents missed via description-precedence)",
+    "no_difference": "rebalancing (identical counts)",
+    "timing": "Arm A 4214 ms vs Arm B 4159 ms — a 55 ms difference on a single run, which is NOT a meaningful speed claim.",
+    "requests": "4 upstream requests in both arms — no cost difference in billable units."
+  }
+}

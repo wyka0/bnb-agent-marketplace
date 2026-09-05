@@ -1,0 +1,24 @@
+{
+  "arm": "B",
+  "procedure": "marketplace x402 parse + chain-pinned requirement selection",
+  "elapsedMs": 2,
+  "upstreamRequests": 0,
+  "monetaryCost": "NOT MEASURABLE (offline)",
+  "output": {
+    "validChallenge": {
+      "decision": "accept",
+      "reason": "payable on bnb-testnet (chain 97)"
+    },
+    "mainnetTarget": {
+      "decision": "refuse",
+      "reason": "Mainnet (chain 56) is not enabled for x402 this phase. Refused network \"56\"."
+    },
+    "malformed": {
+      "decision": "refuse",
+      "reason": "x402 402 body carries no payable options (missing accepts[] or scheme)."
+    },
+    "chainEnforcement": "ENFORCED — chain 97 only; mainnet refused",
+    "signed": false,
+    "submitted": false
+  }
+}
