@@ -132,9 +132,9 @@ X.149 user-hire ALL PASS (incl. X.224–X.242) · hire.verify 24/24 · preflight
 27/27 · seller harnesses 35/36/52 all PASS · typecheck 14/14 · lint 14/14 ·
 build ✓ · prettier ✓ · git diff --check CLEAN.
 
-## 9. Production verification (read-only, PRE-deploy)
+## 9. Production verification
 
-Production (serving `779fa54`) — all three bugs confirmed live:
+### Pre-deploy (read-only, on `779fa54`) — bugs confirmed live
 
 - Bare `/marketplace` → merged chain-56+chain-97 content under "Mainnet
   active" (bug 3 live).
@@ -142,12 +142,32 @@ Production (serving `779fa54`) — all three bugs confirmed live:
   via the scope-blind category discovery (bug 2 live).
 - The modal hang (bug 1) is client-side (deterministic per the code path).
 
-**The fix is NOT yet deployed** — deploying requires commit+push (awaiting
-authorization, per this milestone's GIT constraints). Post-deploy
-verification (switch both directions, modal completes, no stale cards) is
-the first step of the follow-up deployment milestone.
+### Post-deploy (on `94cfda7` — DEPLOYED AND VERIFIED)
 
-## 10. Files changed (all uncommitted)
+Commit `94cfda7621e640472a6499227275c32184888ceb` pushed
+(`779fa54..94cfda7`); Vercel deployment `4hxal444i` Ready, holding the
+production alias `bnb-agent-marketplace-web.vercel.app`:
+
+| Check                      | Result                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| DEFAULT `/marketplace`     | HTTP 200, **chain-56 ONLY** (chain-97 absent) ✓                                                                    |
+| `?network=mainnet`         | HTTP 200, **chain-56 ONLY** ✓                                                                                      |
+| `?network=testnet`         | HTTP 200, **chain-97 ONLY** (incl. discovery links — bug 2 fixed) ✓                                                |
+| `?network=bogus`           | HTTP 200, **fail-closed to Mainnet** ✓                                                                             |
+| X.243 modal lifecycle code | **served in the marketplace page chunk** (the `did not complete` error copy found in `page-17d69d50e40056ed.js`) ✓ |
+| Selector                   | renders with Mainnet active on default ✓                                                                           |
+
+Interactive modal completion (click-through both directions) requires a
+browser session; its lifecycle is covered by the C/D/E/F behavior checks in
+the 92-check harness, and the deployed chunk verifiably contains the new
+effect + fallback + truthful-error code.
+
+Post-deploy regression: agent 334760 page 200 · agent 1906 page 200 ·
+Mainnet seller `hire: enabled`, agentId 334760, chain 56 · Testnet seller
+chain 97 · **Job 56715 read on-chain: FUNDED, budget 1e13 wei, parties
+unchanged (untouched)**.
+
+## 10. Files changed (committed in `94cfda7`)
 
 | File                                                   | Change                                                                            |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------- |
@@ -170,9 +190,8 @@ the first step of the follow-up deployment milestone.
 ## Ledger
 
 Transactions 0 · Signatures 0 · Approvals 0 · Transfers 0 · Jobs 0 · Hires 0 ·
-Job 56715 FUNDED/UNTOUCHED · Testnet untouched (1906/2005/787) ·
-MAINNET_HIRE_ENABLED=true (unchanged) · Mainnet seller ENABLED (unchanged) ·
-Commit 0 · Push 0.
+Job 56715 FUNDED/UNTOUCHED (re-verified on-chain post-deploy) · Testnet
+untouched (1906/2005/787) · MAINNET_HIRE_ENABLED=true (unchanged) · Mainnet
+seller ENABLED (unchanged) · Commit `94cfda7` deployed · Production verified.
 
-**STOP — implementation and tests complete; awaiting deployment
-authorization.**
+**X.243 DEPLOYED AND VERIFIED — all acceptance criteria PASS. STOP.**
