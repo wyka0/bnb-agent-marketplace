@@ -154,3 +154,13 @@ from the wrong project, set on the real production project (verified via ercel
 env ls production), and the production redeploy triggered. No production
 outage occurred at any point; the alias served the previous Ready build
 throughout.
+
+## Deployment confirmation (post-redeploy)
+
+Production alias nb-agent-marketplace-web.vercel.app now serves deployment
+lb0d5skrd (dpl_6fAxrq1HWCPrrR6kJkPkzAYLPREB, created 05:39 GMT+0530 — after the
+flag was set on the real project), which carries MAINNET_HIRE_ENABLED=true.
+Final live checks: alias HTTP 200; mainnet seller /health hire:enabled, agentId
+334760, chain 56; /negotiate accepted=true at price 10000000000000 with
+provider signature (recovers to the registered owner); testnet seller chain 97
+unchanged. Zero blockchain transactions throughout this milestone.
