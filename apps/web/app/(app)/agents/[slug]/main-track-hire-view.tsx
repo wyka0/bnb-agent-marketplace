@@ -270,7 +270,13 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
     }
   }
 
-  const isAvailableAgent = agent.chainId === 97 && Boolean(agent.ownerAddress);
+  // X.245 — chain-aware availability: registered agents on the two REAL
+  // commercial chains (56 Mainnet, 97 Testnet) are hireable. The server-side
+  // X.241 gate remains authoritative: a chain-56 prepare fails closed with the
+  // truthful "Mainnet hiring is unavailable" response whenever the flag is
+  // off, so this UI state can never bypass the backend.
+  const isAvailableAgent =
+    (agent.chainId === 97 || agent.chainId === 56) && Boolean(agent.ownerAddress);
   // X.234 — chain-aware display from the agent's own chain, never a label guess.
   const agentChainLabel =
     agent.chainId === 56
@@ -303,7 +309,7 @@ export function MainTrackHireView({ agent }: { agent: LeaderboardAgent }) {
         <p className="mt-2 text-xs text-muted-foreground">
           {isAvailableAgent
             ? "A real ERC-8183 commercial hire. Your wallet signs and broadcasts every step; the marketplace verifies each receipt and the final funded state."
-            : "Hire opens once the agent is a verified BSC Testnet (chain 97) registry agent."}
+            : "Hire opens once the agent is a verified BNB Chain registry agent (BSC Testnet chain 97 or BNB Mainnet chain 56)."}
         </p>
 
         {state.kind === "review" && review ? (

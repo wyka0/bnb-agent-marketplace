@@ -655,11 +655,19 @@ export function AgentDetailView({
 
   /* ---- Right-rail blocks (reused inline on tablet/mobile) ---- */
   const hireCard =
-    agent && agent.chainId === 97 && agent.ownerAddress ? (
+    agent && (agent.chainId === 97 || agent.chainId === 56) && agent.ownerAddress ? (
+      /* X.245 — chain-56 AND chain-97 registered agents get the REAL hire
+         flow. Mainnet hiring was enabled in production (X.242-DEPLOY-ENABLE:
+         MAINNET_HIRE_ENABLED=true, seller live, first hire funded as Job
+         56715), so the X.234 "coming soon" card was a stale UI guard, not a
+         safety gate. Actual availability remains governed server-side by the
+         X.241 chain-aware API (a chain-56 prepare fails closed with the
+         truthful "unavailable" response whenever the flag is false) — this
+         card can still never bypass the backend. */
       <MainTrackHireView agent={agent} />
     ) : agent && agent.chainId === 56 ? (
-      /* X.234 — chain-56 agents may be discovered and understood, but Mainnet
-         hiring is intentionally unavailable; this card can NEVER reach signing. */
+      /* Chain-56 WITHOUT a registry owner: unreachable in practice (an
+         indexed agent always carries its owner) — kept fail-closed. */
       <Card className="border-border/70">
         <CardContent className="p-5">
           <div className="flex items-center justify-between gap-2">
@@ -667,21 +675,15 @@ export function AgentDetailView({
               Hire
             </span>
             <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Coming soon
+              Unavailable
             </span>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Mainnet hiring coming soon. Commercial hire is currently available on BSC Testnet (chain
-            97) only. This agent is displayed for discovery and understanding; no wallet
-            interaction, negotiation, or transaction is available for Mainnet agents at this time.
+            This Mainnet agent has no registered owner in the ERC-8004 registry record, so
+            commercial hire cannot be prepared.
           </p>
-          <Button
-            type="button"
-            disabled
-            title="Mainnet hiring is not yet enabled."
-            className="mt-4 h-11 w-full"
-          >
-            Mainnet hiring unavailable
+          <Button type="button" disabled className="mt-4 h-11 w-full">
+            Hire unavailable
           </Button>
         </CardContent>
       </Card>

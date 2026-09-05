@@ -116,6 +116,19 @@ export function filterValidAgentRecords(rows: readonly unknown[]): Scan8004Agent
 }
 
 /**
+ * X.245 — upstream registry read timeout.
+ *
+ * X.244 measured 8004scan healthy reads at ~0.7–2.2s and degraded reads
+ * slow-failing at ~10.4s (502). The previous 8s timeout let a degraded
+ * upstream block the whole server render for 8–10s on every marketplace
+ * page/network switch. 4s keeps ~1.8x headroom over the worst observed
+ * HEALTHY read and fails fast to the honest "registry unavailable" state.
+ * Truthful degraded behavior is unchanged: a timeout still renders the
+ * honest offline state — never fabricated data.
+ */
+export const SCAN_READ_TIMEOUT_MS = 4_000;
+
+/**
  * `GET /agents` — list ERC-8004 agents (paginated).
  *
  * Never throws for HTTP/network problems: returns a discriminated result so the
@@ -126,7 +139,10 @@ export async function listAgents(
   options: { timeoutMs?: number; signal?: AbortSignal } = {}
 ): Promise<Scan8004Result<Scan8004Agent>> {
   const apiKey = get8004ScanApiKey();
-  const client = createApiClient({ baseUrl: baseUrl(), timeoutMs: options.timeoutMs ?? 8000 });
+  const client = createApiClient({
+    baseUrl: baseUrl(),
+    timeoutMs: options.timeoutMs ?? SCAN_READ_TIMEOUT_MS,
+  });
 
   const headers: Record<string, string> = { Accept: "application/json" };
   // Documented auth: optional `X-API-Key` header. Omitted entirely when unset.
