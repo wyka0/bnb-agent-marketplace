@@ -145,3 +145,12 @@ executed.**
 **STOP — awaiting fresh explicit user authorization for the actual
 five-transaction Mainnet hire (createJob → registerJob → setBudget →
 $U approve → fund). None of it has been executed, signed, or prompted.**
+
+## Post-report addendum
+
+The env var was initially set on a wrong Vercel project (nb-agent-marketplace,
+not nb-agent-marketplace-web); corrected within the same milestone: removed
+from the wrong project, set on the real production project (verified via ercel
+env ls production), and the production redeploy triggered. No production
+outage occurred at any point; the alias served the previous Ready build
+throughout.
